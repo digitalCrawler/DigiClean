@@ -265,11 +265,17 @@ python -m http.server 8080 --bind 127.0.0.1 --directory website
 Open http://127.0.0.1:8080/. Download buttons show a "preview" note until
 the site is deployed from the repository.
 
-## Refreshing artwork
+## Design system and artwork
 
-* Brand source: `branding/brand-sheet.png` (navy `#112F47`, mint `#6FD8B0`,
-  Outfit typeface). `python tools/brand_assets.py` (Pillow) rebuilds every
-  app icon, the in-app logo, the website favicons and the link-preview image.
+* The app and the website share the **Typography-Driven** design system:
+  oversized, tightly tracked display type; ink `#0F0F0F` on `#F4F4F0`
+  (inverted in dark mode); one accent, `#FF3D00`; 3px rules; square corners
+  with pill buttons; no shadows. Typeface: Archivo (`assets/fonts`, OFL).
+  Tokens live in `lib/src/ui/theme.dart` (app) and `website/assets/site.css`
+  (website); keep the two in step.
+* App icons still come from `branding/brand-sheet.png` (navy `#112F47`,
+  mint `#6FD8B0`): `python tools/brand_assets.py` (Pillow) rebuilds every
+  app icon, the website favicons and the link-preview image.
 * Landing-page screenshots (Windows):
   ```bash
   flutter test integration_test/marketing_shots.dart -d windows \

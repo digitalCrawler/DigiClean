@@ -11,6 +11,7 @@ import '../../state/recovery_controller.dart';
 import '../../state/results_controller.dart';
 import '../../state/settings.dart';
 import '../../state/upkeep.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/system_trash.dart';
 import 'recommendations_page.dart';
@@ -158,8 +159,8 @@ class _Banner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final bg = error ? scheme.errorContainer : scheme.secondaryContainer;
-    final fg = error ? scheme.onErrorContainer : scheme.onSecondaryContainer;
+    final bg = error ? scheme.errorContainer : null;
+    final fg = error ? scheme.onErrorContainer : scheme.onSurface;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Card(
@@ -172,7 +173,7 @@ class _Banner extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(icon, color: fg),
+                  Icon(icon, color: error ? fg : Brand.accent),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(

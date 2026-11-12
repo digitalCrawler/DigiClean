@@ -292,7 +292,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Storage'), findsWidgets);
-    expect(find.text('Where to look'), findsOneWidget);
+    expect(find.text('WHERE TO LOOK'), findsOneWidget);
     expect(find.text('Select a folder to scan'), findsOneWidget);
 
     // Navigate to the other destinations.
@@ -301,7 +301,7 @@ void main() {
     expect(find.text('Recovery Bin'), findsWidgets);
     await tester.tap(find.text('Settings').first);
     await tester.pumpAndSettle();
-    expect(find.text('Appearance'), findsOneWidget);
+    expect(find.text('APPEARANCE'), findsOneWidget);
     await tester.tap(find.text('Results').first);
     await tester.pumpAndSettle();
     expect(find.text('No results yet'), findsOneWidget);
@@ -547,9 +547,9 @@ void main() {
     // The dashboard summarises the scan.
     await tester.tap(find.text('Storage').first);
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Last scan'), 200, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(find.text('LAST SCAN'), 200, scrollable: find.byType(Scrollable).first);
     await tester.scrollUntilVisible(
-      find.text('What uses space in the scanned folders'),
+      find.text('WHAT USES SPACE IN THE SCANNED FOLDERS'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
@@ -630,7 +630,7 @@ void main() {
     expect(container.read(resultsProvider).summary!.similarGroups, 1);
     expect(container.read(resultsProvider).summary!.mediaGroups, 1);
     expect(find.textContaining('2 similar photos'), findsOneWidget);
-    expect(find.text('Best'), findsOneWidget);
+    expect(find.text('BEST'), findsOneWidget);
 
     tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first).clearSnackBars();
     await tester.pumpAndSettle();

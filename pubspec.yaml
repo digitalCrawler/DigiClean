@@ -67,17 +67,21 @@ flutter:
   assets:
     - assets/branding/
 
-  # Brand typeface (SIL Open Font License, see assets/fonts/OFL.txt).
+  # Typeface of the Typography-Driven design system: Archivo, a free grotesk
+  # standing in for Söhne / Neue Haas Grotesk (SIL Open Font License, see
+  # assets/fonts/OFL.txt). The website uses the same family.
   fonts:
-    - family: Outfit
+    - family: Archivo
       fonts:
-        - asset: assets/fonts/Outfit-Regular.ttf
-        - asset: assets/fonts/Outfit-Medium.ttf
+        - asset: assets/fonts/Archivo-Regular.ttf
+        - asset: assets/fonts/Archivo-Medium.ttf
           weight: 500
-        - asset: assets/fonts/Outfit-SemiBold.ttf
+        - asset: assets/fonts/Archivo-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/Outfit-Bold.ttf
+        - asset: assets/fonts/Archivo-Bold.ttf
           weight: 700
+        - asset: assets/fonts/Archivo-ExtraBold.ttf
+          weight: 800
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

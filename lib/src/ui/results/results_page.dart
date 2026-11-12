@@ -995,13 +995,14 @@ class _SummaryHeader extends StatelessWidget {
               children: [
                 TextSpan(
                   text: formatBytes(reclaimable),
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: scheme.primary,
-                    fontWeight: FontWeight.w700,
+                  style: displayStyle(context.isCompact ? 34 : 44, color: context.ds.ink).copyWith(
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
-                TextSpan(text: '  can be freed', style: theme.textTheme.titleSmall),
+                TextSpan(
+                  text: '  can be freed',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                ),
               ],
             ),
           ),
@@ -1200,8 +1201,8 @@ class _SelectionBar extends ConsumerWidget {
         : 'Move to Recovery Bin';
 
     return Material(
-      color: scheme.surfaceContainer,
-      elevation: 3,
+      color: scheme.surfaceContainerLowest,
+      shape: Border(top: context.ds.rule),
       child: SafeArea(
         top: false,
         child: Padding(

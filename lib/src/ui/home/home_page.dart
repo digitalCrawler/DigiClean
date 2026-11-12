@@ -195,7 +195,7 @@ class _LocationsCard extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
                 decoration: BoxDecoration(
                   border: Border.all(color: theme.colorScheme.outlineVariant),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Column(
                   children: [
@@ -322,7 +322,7 @@ class _StartColumn extends ConsumerWidget {
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
-                  children: [for (final c in chips) TagChip(c, color: theme.colorScheme.secondary)],
+                  children: [for (final c in chips) TagChip(c, outlined: true, caps: false)],
                 ),
                 const SizedBox(height: 20),
                 FilledButton.icon(

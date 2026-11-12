@@ -9,6 +9,7 @@ import '../../rust/api/results.dart';
 import '../../rust/api/types.dart';
 import '../../state/locations.dart';
 import '../../state/results_controller.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/file_preview.dart';
 import '../widgets/path_text.dart';
@@ -236,11 +237,11 @@ class _PhotoTile extends StatelessWidget {
           Stack(
             children: [
               InkWell(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.zero,
                 onTap: () => openFile(context, photo.path),
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.zero,
                     border: Border.all(
                       width: 3,
                       color: photo.selected
@@ -258,11 +259,11 @@ class _PhotoTile extends StatelessWidget {
                 left: 4,
                 child: Material(
                   color: scheme.surface.withValues(alpha: 0.85),
-                  shape: const CircleBorder(),
+                  shape: const RoundedRectangleBorder(),
                   child: Checkbox(value: photo.selected, onChanged: (v) => onSelect(photo.id, v ?? false)),
                 ),
               ),
-              if (photo.best) Positioned(bottom: 8, left: 8, child: TagChip('Best', color: scheme.primary)),
+              if (photo.best) Positioned(bottom: 8, left: 8, child: TagChip('Best', color: context.ds.accent)),
             ],
           ),
           const SizedBox(height: 4),
@@ -404,7 +405,7 @@ class MediaGroupCard extends StatelessWidget {
                               children: [
                                 Row(
                                   children: [
-                                    if (m.best) ...[TagChip('Best', color: scheme.primary), const SizedBox(width: 6)],
+                                    if (m.best) ...[TagChip('Best', color: context.ds.accent), const SizedBox(width: 6)],
                                     Expanded(
                                       child: Text(
                                         m.name,

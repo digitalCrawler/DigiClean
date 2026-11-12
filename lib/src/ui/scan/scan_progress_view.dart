@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/format.dart';
 import '../../rust/api/types.dart';
 import '../../state/scan_controller.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 
 /// Live view of a running scan: pipeline stage, throughput and controls.
@@ -204,13 +205,13 @@ class _StageStepper extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: active ? scheme.primary : (done ? scheme.primaryContainer : scheme.surfaceContainerHighest),
-                shape: BoxShape.circle,
+                color: active ? context.ds.accent : (done ? scheme.primary : scheme.surfaceContainerLowest),
+                border: Border.all(color: active ? context.ds.accent : scheme.primary, width: Tokens.control),
               ),
               child: Icon(
                 done ? Icons.check : stages[i].$3,
                 size: 20,
-                color: active ? scheme.onPrimary : (done ? scheme.onPrimaryContainer : scheme.outline),
+                color: active ? context.ds.onAccent : (done ? scheme.onPrimary : scheme.onSurfaceVariant),
               ),
             ),
             const SizedBox(height: 6),

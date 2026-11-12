@@ -24,13 +24,13 @@ class FileThumbnail extends StatelessWidget {
     final fallback = Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(color: tint.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(size * 0.22)),
+      decoration: BoxDecoration(color: tint.withValues(alpha: 0.12), borderRadius: BorderRadius.zero),
       child: Icon(iconForPath(path), color: tint, size: size * 0.5),
     );
     if (previewKindFor(path) != PreviewKind.image) return fallback;
     final px = (size * MediaQuery.devicePixelRatioOf(context)).round();
     return ClipRRect(
-      borderRadius: BorderRadius.circular(size * 0.22),
+      borderRadius: BorderRadius.zero,
       child: Image.file(
         File(path),
         width: size,
@@ -79,7 +79,7 @@ class FilePreview extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.zero,
       ),
       clipBehavior: Clip.antiAlias,
       child: child,

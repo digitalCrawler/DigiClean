@@ -122,8 +122,6 @@ void main() {
       debugPrint('building demo library in $root');
       await tester.runAsync(() => buildLibrary(root));
       debugPrint('demo library ready');
-      final appData = Directory.systemTemp.createTempSync('dc_marketing_');
-
       Future<void> waitFor(bool Function() c) async {
         final end = DateTime.now().add(const Duration(seconds: 60));
         while (!c()) {
@@ -141,6 +139,9 @@ void main() {
         ('screenshot-desktop', const Size(1280, 800), false),
         ('screenshot-desktop-dark', const Size(1280, 800), true),
       ]) {
+        // Fresh app data per pass: otherwise the second pass restores the
+        // first pass's saved results and never settles.
+        final appData = Directory.systemTemp.createTempSync('dc_marketing_');
         tester.view.physicalSize = size;
         tester.view.devicePixelRatio = 1;
         SharedPreferences.setMockInitialValues({
@@ -177,10 +178,10 @@ void main() {
 
         await tester.pumpWidget(const SizedBox());
         container.dispose();
+        appData.deleteSync(recursive: true);
       }
       tester.view.reset();
       Directory(root).deleteSync(recursive: true);
-      appData.deleteSync(recursive: true);
     },
   );
 }

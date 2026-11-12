@@ -10,6 +10,8 @@ use digiclean_engine::background::{notify, run_check, CheckJob};
 use digiclean_engine::ScanControl;
 
 fn main() -> ExitCode {
+    // A daily job the user did not start: never compete with what they are doing.
+    digiclean_engine::priority::lower_current_process();
     let mut args = std::env::args_os().skip(1);
     let job = match (args.next(), args.next()) {
         (Some(flag), Some(path)) if flag == "--job" => PathBuf::from(path),

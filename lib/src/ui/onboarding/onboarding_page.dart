@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/storage_access.dart';
 import '../../state/settings.dart';
+import '../theme.dart';
 
 /// First-run explanation and, on Android, the storage permission request.
 class OnboardingPage extends ConsumerStatefulWidget {
@@ -56,77 +57,98 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         ? 'You choose which folders DigiClean can see, from Files, iCloud Drive or On My iPhone.'
         : null;
 
+    final ds = context.ds;
+    final wide = MediaQuery.sizeOf(context).width >= 520;
+    final headline = displayStyle(wide ? 64 : 48, color: ds.ink);
+
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
+              constraints: const BoxConstraints(maxWidth: 560),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.asset('assets/branding/app_icon.png', width: 72, height: 72),
+                  Row(
+                    children: [
+                      Container(width: 14, height: 14, color: ds.accent),
+                      const SizedBox(width: 10),
+                      Text('DigiClean', style: displayStyle(22, color: ds.ink).copyWith(letterSpacing: -1)),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Welcome to DigiClean',
-                    style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+                  const SizedBox(height: 40),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    color: ds.ink,
+                    child: Text('DUPLICATE FILE & FOLDER FINDER', style: capsStyle(scheme.surface, size: 11).copyWith(fontWeight: FontWeight.w700)),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'DUPLICATE FILE & FOLDER FINDER',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.secondary,
-                      letterSpacing: 1.6,
-                      fontWeight: FontWeight.w600,
+                  const SizedBox(height: 18),
+                  Text.rich(
+                    TextSpan(
+                      style: headline,
+                      children: [
+                        const TextSpan(text: 'Keep '),
+                        TextSpan(
+                          text: 'one',
+                          style: TextStyle(
+                            decoration: TextDecoration.underline,
+                            decorationColor: ds.accent,
+                            decorationThickness: 3,
+                          ),
+                        ),
+                        const TextSpan(text: '.\nClear the rest.'),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 20),
                   Text(
-                    'Reclaim storage by finding exact duplicate files and folders.',
-                    style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
+                    'DigiClean finds exact duplicate files and folders by their contents, and removes the extras without ever touching the last copy.',
+                    style: theme.textTheme.bodyLarge?.copyWith(color: ds.muted),
                   ),
-                  const SizedBox(height: 28),
-                  for (final (icon, title, text) in points)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 18),
+                  const SizedBox(height: 32),
+                  for (final (i, (icon, title, text)) in points.indexed)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        border: Border(top: i == 0 ? ds.rule : BorderSide(color: ds.hairline)),
+                      ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: scheme.primaryContainer,
-                              borderRadius: BorderRadius.circular(12),
+                          SizedBox(
+                            width: 44,
+                            child: Text(
+                              (i + 1).toString().padLeft(2, '0'),
+                              style: displayStyle(20, color: ds.accent),
                             ),
-                            child: Icon(icon, color: scheme.onPrimaryContainer, size: 22),
                           ),
-                          const SizedBox(width: 16),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(title, style: theme.textTheme.titleMedium),
                                 const SizedBox(height: 2),
-                                Text(text, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                                Text(text, style: theme.textTheme.bodyMedium?.copyWith(color: ds.muted)),
                               ],
                             ),
                           ),
+                          const SizedBox(width: 12),
+                          Icon(icon, size: 22, color: ds.ink),
                         ],
                       ),
                     ),
                   if (permissionNote != null) ...[
                     const SizedBox(height: 8),
-                    Text(permissionNote, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                    Text(permissionNote, style: theme.textTheme.bodySmall),
                   ],
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: _requesting ? null : _continue,
+                      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
                       child: Text(StorageAccess.needsPermission ? 'Allow access and continue' : 'Get started'),
                     ),
                   ),

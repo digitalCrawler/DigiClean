@@ -331,10 +331,7 @@ pub fn analyze_image_set(
         .filter(|d| !d.is_empty())
         .and_then(|d| engine::HashCache::open(std::path::Path::new(&d)).ok());
     let threads = std::thread::available_parallelism().map_or(2, |n| n.get());
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let pool = engine::priority::background_pool(threads, "digiclean-photos").map_err(|e| anyhow::anyhow!("{e}"))?;
     let out =
         engine::photos::analyze_set(&inputs, cache.as_ref(), &engine::ScanControl::new(), &pool)?;
     Ok(ImageSetAnalysisDto {

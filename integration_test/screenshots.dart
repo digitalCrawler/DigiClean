@@ -337,8 +337,8 @@ void main() {
       // The page keeps its scroll position from the earlier visit.
       await tester.fling(find.byType(ListView).first, const Offset(0, 4000), 4000);
       await waitFor(() => true);
-      await tester.dragUntilVisible(find.text('Keep it clean'), find.byType(ListView).first, const Offset(0, -200));
-      await tester.ensureVisible(find.text('Keep it clean'));
+      await tester.dragUntilVisible(find.text('KEEP IT CLEAN'), find.byType(ListView).first, const Offset(0, -200));
+      await tester.ensureVisible(find.text('KEEP IT CLEAN'));
       await waitFor(() => true);
       await capture('${label}_20_settings', key);
       await tester.tap(find.text('Results').last);

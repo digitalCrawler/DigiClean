@@ -143,7 +143,7 @@ class FolderGroupCard extends StatelessWidget {
         leading: Container(
           width: 40,
           height: 40,
-          decoration: BoxDecoration(color: scheme.tertiaryContainer, borderRadius: BorderRadius.circular(9)),
+          decoration: BoxDecoration(color: scheme.tertiaryContainer, borderRadius: BorderRadius.zero),
           child: Icon(Icons.folder_copy_outlined, color: scheme.onTertiaryContainer, size: 22),
         ),
         title: sameName ? folders.first.name : '${folders.length} identical folders',
@@ -220,14 +220,8 @@ class _GroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Card(
-      shape: focused
-          ? RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: scheme.primary, width: 2),
-            )
-          : null,
+      shape: focused ? RoundedRectangleBorder(side: BorderSide(color: context.ds.accent, width: Tokens.rule)) : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [header, const Divider(height: 1), ...rows],
@@ -360,8 +354,8 @@ class _CopyRow extends StatelessWidget {
                         children: [
                           if (showStatus) ...[
                             selected
-                                ? TagChip('Remove', color: scheme.error)
-                                : TagChip('Keep', color: scheme.primary, icon: Icons.check),
+                                ? TagChip('Remove', color: context.ds.ink, outlined: true)
+                                : TagChip('Keep', color: context.ds.accent, icon: Icons.check),
                             const SizedBox(width: 8),
                           ],
                           Expanded(
@@ -597,7 +591,7 @@ class JunkTile extends StatelessWidget {
                   height: 40,
                   decoration: BoxDecoration(
                     color: scheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(9),
+                    borderRadius: BorderRadius.zero,
                   ),
                   child: Icon(junkKindIcon(item.kind), size: 20, color: scheme.onSurfaceVariant),
                 ),

@@ -232,7 +232,7 @@ class PerformancePicker extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
     final options = <(PerformanceMode?, String, String)>[
-      (null, 'Automatic', AppSettings.isMobile ? 'Balanced on this device' : 'Maximum speed on this device'),
+      (null, 'Automatic', 'Balanced: fast, and the computer stays responsive'),
       (PerformanceMode.maximum, 'Maximum speed', 'Uses every CPU core'),
       (PerformanceMode.balanced, 'Balanced', 'Leaves headroom for other apps'),
       (PerformanceMode.batterySaver, 'Battery saver', 'One worker; cool and quiet'),

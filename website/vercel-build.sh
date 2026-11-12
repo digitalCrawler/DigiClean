@@ -10,7 +10,7 @@ set -eu
 
 rm -rf public
 mkdir -p public
-cp index.html public/
+cp ./*.html public/
 cp -R assets public/
 
 repo="${DIGICLEAN_REPO:-}"
@@ -25,7 +25,7 @@ case "$repo" in
   */*/* | *" "* | *:*) echo "error: DIGICLEAN_REPO must look like owner/name, got '$repo'" >&2; exit 1 ;;
 esac
 if [ -n "$repo" ]; then
-  sed -i "s|__GITHUB_REPOSITORY__|${repo}|g" public/index.html
+  sed -i "s|__GITHUB_REPOSITORY__|${repo}|g" public/*.html
   echo "Download links point at github.com/${repo}/releases"
 else
   echo "warning: no GitHub repository known; download buttons stay inactive (set DIGICLEAN_REPO)" >&2

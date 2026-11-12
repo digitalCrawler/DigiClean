@@ -11,6 +11,7 @@ import '../../rust/api/maintenance.dart';
 import '../../rust/api/types.dart';
 import '../../state/locations.dart';
 import '../results/photo_cards.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 
 /// Similar photos, blurry and dark photos and screenshots in the device
@@ -319,14 +320,14 @@ class _Thumb extends StatelessWidget {
               children: [
                 Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.zero,
                     border: Border.all(
                       width: 3,
                       color: selected ? scheme.error : (best ? scheme.primary : Colors.transparent),
                     ),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(7),
+                    borderRadius: BorderRadius.zero,
                     child: Image.file(File(photo.preview), width: 98, height: 98, fit: BoxFit.cover, cacheWidth: 200),
                   ),
                 ),
@@ -335,7 +336,7 @@ class _Thumb extends StatelessWidget {
                   left: 2,
                   child: Checkbox(value: selected, onChanged: (v) => onChanged(v ?? false)),
                 ),
-                if (best) Positioned(bottom: 6, left: 6, child: TagChip('Best', color: scheme.primary)),
+                if (best) Positioned(bottom: 6, left: 6, child: TagChip('Best', color: context.ds.accent)),
               ],
             ),
             Text(

@@ -248,7 +248,8 @@ class _Treemap extends StatelessWidget {
 
   static List<Color> _palette(ColorScheme scheme, Brightness b) {
     final dark = b == Brightness.dark;
-    final bases = [scheme.primary, scheme.tertiary, scheme.secondary, const Color(0xFF3B82B8), const Color(0xFF8E6BBF)];
+    // Accent, ink and three greys: the design system's whole palette.
+    final bases = [Tokens.accent, scheme.primary, scheme.tertiary, const Color(0xFF8A8A80), const Color(0xFFB9B9AF)];
     return [
       for (final c in bases)
         for (final t in [0.0, 0.25]) Color.lerp(c, dark ? Colors.black : Colors.white, t + (dark ? 0.15 : 0.1))!,
@@ -272,7 +273,7 @@ class _Tile extends StatelessWidget {
       message: '$label · ${formatBytes(node.bytes)} · ${(share * 100).toStringAsFixed(1)}%',
       child: Material(
         color: color,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.zero,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -318,7 +319,7 @@ class _OtherTile extends StatelessWidget {
     return Tooltip(
       message: '${plural(count, 'smaller item')} · ${formatBytes(bytes)}',
       child: Container(
-        decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.zero),
       ),
     );
   }
@@ -350,7 +351,7 @@ class _NodeTile extends ConsumerWidget {
         children: [
           const SizedBox(height: 4),
           ClipRRect(
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.zero,
             child: LinearProgressIndicator(value: share, minHeight: 5, backgroundColor: scheme.surfaceContainerHighest),
           ),
           const SizedBox(height: 4),

@@ -63,11 +63,10 @@ struct Pipeline<'a> {
     hash_pool: rayon::ThreadPool,
 }
 
+/// Workers run at background priority so a scan does not slow down the
+/// rest of the computer (see [`crate::priority`]).
 fn build_pool(threads: usize, name: &'static str) -> Result<rayon::ThreadPool> {
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(threads.max(1))
-        .thread_name(move |i| format!("{name}-{i}"))
-        .build()
+    crate::priority::background_pool(threads, name)
         .map_err(|e| EngineError::Other(format!("cannot start worker threads: {e}")))
 }
 

@@ -86,9 +86,9 @@ class AppSettings {
 
   static bool get isMobile => Platform.isAndroid || Platform.isIOS;
 
-  /// Mobile devices default to a battery-friendly profile.
-  PerformanceMode get effectivePerformance =>
-      performance ?? (isMobile ? PerformanceMode.balanced : PerformanceMode.maximum);
+  /// Balanced by default: fast, while leaving cores free for the user's other
+  /// programs ("Maximum speed" made whole computers sluggish during scans).
+  PerformanceMode get effectivePerformance => performance ?? PerformanceMode.balanced;
 
   /// Number of non-default filters, for the "Filters (3)" badge.
   int get activeFilterCount {

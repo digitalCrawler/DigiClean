@@ -95,17 +95,19 @@ String categoryLabel(Category c) => switch (c) {
   Category.other => 'Other',
 };
 
-/// Distinct hues per category that read well on both light and dark themes.
+/// Category colours from the design system: the accent family for media,
+/// ink and greys for everything else, so charts stay distinguishable while
+/// the screen keeps to one accent.
 Color categoryColor(Category c, Brightness brightness) {
   final dark = brightness == Brightness.dark;
   return switch (c) {
-    Category.image => dark ? const Color(0xFF7FB3FF) : const Color(0xFF2563EB),
-    Category.video => dark ? const Color(0xFFFF9EB1) : const Color(0xFFDB2777),
-    Category.audio => dark ? const Color(0xFFC4A5FF) : const Color(0xFF7C3AED),
-    Category.document => dark ? const Color(0xFF6EE7C8) : const Color(0xFF0F9F7A),
-    Category.archive => dark ? const Color(0xFFFFC27A) : const Color(0xFFD97706),
-    Category.application => dark ? const Color(0xFF9DD3FF) : const Color(0xFF0284C7),
-    Category.other => dark ? const Color(0xFFB8C0CC) : const Color(0xFF64748B),
+    Category.image => const Color(0xFFFF3D00),
+    Category.video => dark ? const Color(0xFFFF8A5C) : const Color(0xFFC22E00),
+    Category.audio => dark ? const Color(0xFFFFC2A8) : const Color(0xFFFF8A5C),
+    Category.document => dark ? const Color(0xFFF4F4F0) : const Color(0xFF0F0F0F),
+    Category.archive => dark ? const Color(0xFFB9B9AF) : const Color(0xFF55554E),
+    Category.application => dark ? const Color(0xFF8A8A80) : const Color(0xFF8A8A80),
+    Category.other => dark ? const Color(0xFF55554E) : const Color(0xFFB9B9AF),
   };
 }
 

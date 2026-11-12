@@ -172,7 +172,7 @@ class _DriveRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.zero,
                   child: LinearProgressIndicator(
                     value: drive.fraction.clamp(0, 1),
                     minHeight: 8,
@@ -330,7 +330,7 @@ class SpaceUsageCard extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             ClipRRect(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.zero,
               child: SizedBox(
                 height: 14,
                 child: Row(
@@ -362,7 +362,7 @@ class SpaceUsageCard extends ConsumerWidget {
                         height: 10,
                         decoration: BoxDecoration(
                           color: categoryColor(u.category, theme.brightness),
-                          borderRadius: BorderRadius.circular(3),
+                          borderRadius: BorderRadius.zero,
                         ),
                       ),
                       const SizedBox(width: 6),

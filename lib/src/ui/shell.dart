@@ -121,17 +121,22 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (context.isCompact) {
       return Scaffold(
         body: body,
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: index,
-          onDestinationSelected: _select,
-          destinations: [
-            for (var i = 0; i < _destinations.length; i++)
-              NavigationDestination(
-                icon: iconFor(i, selected: false),
-                selectedIcon: iconFor(i, selected: true),
-                label: _destinations[i].label,
-              ),
-          ],
+        bottomNavigationBar: DecoratedBox(
+          // Drawn over the bar, whose own background would hide it.
+          position: DecorationPosition.foreground,
+          decoration: BoxDecoration(border: Border(top: context.ds.rule)),
+          child: NavigationBar(
+            selectedIndex: index,
+            onDestinationSelected: _select,
+            destinations: [
+              for (var i = 0; i < _destinations.length; i++)
+                NavigationDestination(
+                  icon: iconFor(i, selected: false),
+                  selectedIcon: iconFor(i, selected: true),
+                  label: _destinations[i].label,
+                ),
+            ],
+          ),
         ),
       );
     }
@@ -146,7 +151,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             minExtendedWidth: 200,
             labelType: context.isExpanded ? NavigationRailLabelType.none : NavigationRailLabelType.all,
             leading: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.fromLTRB(4, 18, 4, 20),
               child: _Logo(extended: context.isExpanded),
             ),
             destinations: [
@@ -158,7 +163,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 ),
             ],
           ),
-          const VerticalDivider(width: 1),
+          VerticalDivider(width: Tokens.rule, thickness: Tokens.rule, color: context.ds.ink),
           Expanded(child: body),
         ],
       ),
@@ -166,6 +171,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 }
 
+/// The wordmark: an accent square and "DigiClean" in display type.
 class _Logo extends StatelessWidget {
   const _Logo({required this.extended});
 
@@ -173,26 +179,17 @@ class _Logo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mark = ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Image.asset('assets/branding/app_icon.png', width: 40, height: 40, filterQuality: FilterQuality.medium),
-    );
-    if (!extended) return mark;
+    final ds = context.ds;
+    final mark = Container(width: extended ? 14 : 22, height: extended ? 14 : 22, color: ds.accent);
+    if (!extended) {
+      return Semantics(label: 'DigiClean', child: Padding(padding: const EdgeInsets.all(9), child: mark));
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         mark,
-        const SizedBox(width: 12),
-        Text(
-          'DigiClean',
-          style: TextStyle(
-            fontFamily: Brand.displayFont,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.2,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
+        const SizedBox(width: 10),
+        Text('DigiClean', style: displayStyle(24, color: ds.ink).copyWith(letterSpacing: -1.1)),
       ],
     );
   }

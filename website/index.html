@@ -2,398 +2,308 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>DigiClean — Find and remove duplicate files safely</title>
-  <meta name="description" content="DigiClean finds duplicate files and folders by their contents — even when renamed or moved — and removes the extras safely. For Windows, macOS and Linux.">
-  <meta name="theme-color" content="#112f47">
-  <meta property="og:title" content="DigiClean — Find and remove duplicate files safely">
-  <meta property="og:description" content="Content-based duplicate file and folder finder for Windows, macOS and Linux. Everything runs on your device.">
+  <meta name="description" content="DigiClean finds duplicate files and folders by their contents — even when renamed or moved — plus similar photos, songs and videos, and removes the extras safely. Free for Windows, macOS and Linux.">
+  <meta name="keywords" content="duplicate file finder, remove duplicate files, duplicate folder finder, similar photos, duplicate music, free up disk space, Windows, macOS, Linux">
+  <meta name="theme-color" content="#f4f4f0" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)">
+  <meta property="og:title" content="DigiClean — Keep one. Clear the rest.">
+  <meta property="og:description" content="Content-based duplicate file and folder finder for Windows, macOS and Linux. Free, no account, everything runs on your device.">
   <meta property="og:image" content="assets/og-image.png">
+  <meta property="og:site_name" content="DigiClean">
   <meta name="twitter:card" content="summary_large_image">
   <meta property="og:type" content="website">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <link rel="preload" href="assets/fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-  <style>
-    /* Brand: navy #112F47 + mint #6FD8B0 (branding/brand-sheet.png), Outfit display face. */
-    @font-face {
-      font-family: "Outfit";
-      src: url("assets/fonts/outfit-latin.woff2") format("woff2");
-      font-weight: 100 900;
-      font-display: swap;
-    }
-    :root {
-      --navy: #112f47;
-      --navy-deep: #0b2235;
-      --mint: #6fd8b0;
-      --bg: #f4f7fa;
-      --surface: #ffffff;
-      --surface-2: #ebf1f5;
-      --text: #0f2233;
-      --muted: #4e6274;
-      --border: #d9e3ea;
-      --brand: #112f47;
-      --brand-strong: #0b2235;
-      --on-brand: #ffffff;
-      --accent-ink: #17795a;
-      --accent-soft: #ddf5ec;
-      --band: #112f47;
-      --band-text: #ffffff;
-      --band-muted: rgba(255, 255, 255, 0.74);
-      --band-line: rgba(255, 255, 255, 0.16);
-      --shadow: 0 30px 70px -24px rgba(6, 22, 36, 0.55);
-      --radius: 16px;
-      --display: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      --body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      --shot-light: block;
-      --shot-dark: none;
-      color-scheme: light;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-        --bg: #0a1825;
-        --surface: #0f2233;
-        --surface-2: #142b40;
-        --text: #e7eff5;
-        --muted: #9fb3c3;
-        --border: #21405a;
-        --brand: #6fd8b0;
-        --brand-strong: #9be5c8;
-        --on-brand: #0b2235;
-        --accent-ink: #6fd8b0;
-        --accent-soft: #143a3a;
-        --band: #0d2436;
-        --shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75);
-        --shot-light: none;
-        --shot-dark: block;
-        color-scheme: dark;
-      }
-    }
-    :root[data-theme="dark"] {
-      --bg: #0a1825;
-      --surface: #0f2233;
-      --surface-2: #142b40;
-      --text: #e7eff5;
-      --muted: #9fb3c3;
-      --border: #21405a;
-      --brand: #6fd8b0;
-      --brand-strong: #9be5c8;
-      --on-brand: #0b2235;
-      --accent-ink: #6fd8b0;
-      --accent-soft: #143a3a;
-      --band: #0d2436;
-      --shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75);
-      --shot-light: none;
-      --shot-dark: block;
-      color-scheme: dark;
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    @media (prefers-reduced-motion: reduce) {
-      html { scroll-behavior: auto; }
-      .btn { transition: none; }
-    }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font: 16px/1.6 var(--body);
-      -webkit-font-smoothing: antialiased;
-    }
-    h1, h2, h3, .brand, .btn { font-family: var(--display); }
-    h1, h2 { text-wrap: balance; }
-    a { color: var(--accent-ink); }
-    img { max-width: 100%; height: auto; display: block; }
-    .wrap { width: min(1160px, 100% - 32px); margin-inline: auto; }
-    .shot-light { display: var(--shot-light); }
-    .shot-dark { display: var(--shot-dark); }
-    a:focus-visible, summary:focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; border-radius: 6px; }
-
-    /* Brand band: header + hero stay navy in every theme. */
-    .band {
-      background:
-        radial-gradient(900px 420px at 85% 10%, rgba(111, 216, 176, 0.16), transparent 60%),
-        var(--band);
-      color: var(--band-text);
-    }
-    header {
-      position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
-      background: color-mix(in srgb, var(--band) 92%, transparent);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid var(--band-line);
-    }
-    .nav { display: flex; align-items: center; gap: 24px; height: 64px; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 21px; letter-spacing: -0.01em; color: var(--band-text); text-decoration: none; }
-    .brand img { width: 34px; height: 34px; border-radius: 9px; box-shadow: 0 0 0 1px var(--band-line); }
-    .nav-links { display: flex; gap: 22px; margin-left: auto; }
-    .nav-links a { color: var(--band-muted); text-decoration: none; font-size: 15px; }
-    .nav-links a:hover { color: var(--band-text); }
-    .nav .btn { margin-left: 8px; }
-    @media (max-width: 720px) { .nav-links { display: none; } .nav .btn { margin-left: auto; } }
-
-    /* Buttons */
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-      padding: 12px 20px; border-radius: 12px; font-weight: 600; text-decoration: none;
-      border: 1px solid transparent; cursor: pointer; font-size: 15.5px; line-height: 1.2;
-      transition: transform .12s ease, background .12s ease, border-color .12s ease;
-    }
-    .btn:active { transform: translateY(1px); }
-    .btn-primary { background: var(--brand); color: var(--on-brand); }
-    .btn-primary:hover { background: var(--brand-strong); }
-    .btn-mint { background: var(--mint); color: var(--navy-deep); }
-    .btn-mint:hover { background: #8ee3c2; }
-    .btn-outline { background: transparent; color: var(--band-text); border-color: rgba(255, 255, 255, 0.32); }
-    .btn-outline:hover { border-color: var(--mint); color: var(--mint); }
-    .btn-small { padding: 8px 14px; font-size: 14.5px; }
-    .btn svg { width: 20px; height: 20px; flex: none; }
-    .btn-big { padding: 16px 26px; font-size: 17.5px; border-radius: 14px; }
-    .btn-big .sub { display: block; font-family: var(--body); font-weight: 500; font-size: 12.5px; opacity: .8; margin-top: 2px; }
-
-    /* Hero */
-    .hero { padding: 76px 0 84px; display: grid; grid-template-columns: 1fr 1.15fr; gap: 56px; align-items: center; }
-    @media (max-width: 960px) { .hero { grid-template-columns: minmax(0, 1fr); padding: 44px 0 56px; gap: 40px; } }
-    .tagline { display: inline-flex; align-items: center; gap: 10px; color: var(--mint); font: 600 13px/1 var(--display); letter-spacing: 0.16em; text-transform: uppercase; }
-    .tagline svg { width: 14px; height: 14px; }
-    h1 { font-size: clamp(40px, 5.6vw, 64px); font-weight: 700; line-height: 1.02; letter-spacing: -0.025em; margin: 18px 0 20px; }
-    h1 em { font-style: normal; color: var(--mint); }
-    .lead { font-size: clamp(17px, 1.6vw, 19px); color: var(--band-muted); max-width: 34em; margin: 0 0 30px; }
-    .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-    .meta { margin-top: 16px; font-size: 13.5px; color: var(--band-muted); }
-    .window {
-      border-radius: 14px; overflow: hidden; border: 1px solid var(--border);
-      box-shadow: var(--shadow); background: var(--surface);
-    }
-    .band .window { border-color: var(--band-line); background: var(--navy-deep); }
-    .window-bar { display: flex; gap: 7px; padding: 11px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
-    .band .window-bar { background: #0f2a40; border-color: var(--band-line); }
-    .window-bar span { width: 11px; height: 11px; border-radius: 50%; background: var(--border); }
-    .band .window-bar span { background: rgba(255, 255, 255, 0.18); }
-
-    /* Trust strip */
-    .trust { display: flex; flex-wrap: wrap; gap: 12px 32px; justify-content: center; padding: 26px 0 6px; color: var(--muted); font-size: 15px; }
-    .trust div { display: flex; align-items: center; gap: 8px; }
-    .trust svg { width: 18px; height: 18px; color: var(--accent-ink); }
-
-    /* Sections */
-    section { padding: 80px 0; }
-    .section-head { max-width: 680px; margin: 0 auto 44px; text-align: center; }
-    h2 { font-size: clamp(30px, 3.6vw, 42px); font-weight: 650; letter-spacing: -0.02em; line-height: 1.12; margin: 0 0 12px; }
-    .section-head p { color: var(--muted); font-size: 18px; margin: 0; }
-
-    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-    @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 600px) { .grid { grid-template-columns: minmax(0, 1fr); } }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
-    .card h3 { margin: 14px 0 6px; font-size: 19px; font-weight: 600; }
-    .card p { margin: 0; color: var(--muted); font-size: 15.5px; }
-    .icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--brand); }
-    .icon svg { width: 22px; height: 22px; }
-
-    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; counter-reset: step; }
-    @media (max-width: 800px) { .steps { grid-template-columns: minmax(0, 1fr); } }
-    .step { position: relative; padding: 24px 24px 24px 74px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
-    .step::before {
-      counter-increment: step; content: counter(step);
-      position: absolute; left: 22px; top: 22px; width: 36px; height: 36px; border-radius: 50%;
-      display: grid; place-items: center; font: 700 17px/1 var(--display); background: var(--navy); color: var(--mint);
-    }
-    .step h3 { margin: 5px 0 6px; font-size: 19px; font-weight: 600; }
-    .step p { margin: 0; color: var(--muted); font-size: 15.5px; }
-
-    .showcase { display: grid; grid-template-columns: 1.3fr 1fr; gap: 48px; align-items: center; }
-    @media (max-width: 900px) { .showcase { grid-template-columns: minmax(0, 1fr); } }
-    .checks { list-style: none; padding: 0; margin: 20px 0 0; display: grid; gap: 12px; }
-    .checks li { display: flex; gap: 12px; color: var(--muted); }
-    .checks svg { width: 22px; height: 22px; flex: none; color: var(--accent-ink); margin-top: 2px; }
-    .checks strong { color: var(--text); font-weight: 600; }
-
-    /* Downloads */
-    .downloads { background: var(--surface-2); border-block: 1px solid var(--border); }
-    .dl { display: flex; flex-direction: column; }
-    .dl.recommended { border-color: var(--accent-ink); box-shadow: 0 0 0 1px var(--accent-ink); }
-    .dl-head { display: flex; align-items: center; gap: 12px; }
-    .dl-head svg { width: 30px; height: 30px; }
-    .dl-head h3 { margin: 0; }
-    .dl .req { font-size: 14px; color: var(--muted); margin: 10px 0 18px; }
-    .dl .btn { width: 100%; margin-top: 8px; }
-    .dl .alt { margin-top: 12px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 14px; }
-    .badge { margin-left: auto; font: 600 12px/1 var(--display); color: var(--navy-deep); background: var(--mint); padding: 5px 9px; border-radius: 999px; }
-    .release-info { text-align: center; color: var(--muted); font-size: 14.5px; margin-top: 26px; }
-
-    /* FAQ */
-    .faq { max-width: 780px; margin: 0 auto; display: grid; gap: 12px; }
-    details { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 4px 20px; }
-    summary { cursor: pointer; font-weight: 600; padding: 14px 0; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
-    summary::-webkit-details-marker { display: none; }
-    summary::after { content: "+"; color: var(--accent-ink); font-size: 22px; line-height: 1; }
-    details[open] summary::after { content: "–"; }
-    details p, details ol { color: var(--muted); margin: 0 0 16px; }
-    code { background: var(--surface-2); padding: 2px 6px; border-radius: 6px; font-size: 0.92em; }
-
-    footer { border-top: 1px solid var(--border); padding: 32px 0; color: var(--muted); font-size: 14px; }
-    footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: center; }
-    footer a { color: var(--muted); }
-    .footer-brand { display: flex; align-items: center; gap: 10px; }
-    .footer-brand img { width: 24px; height: 24px; border-radius: 6px; }
-
-    .preview-note { display: none; margin-top: 14px; font-size: 13px; color: #f7c66b; }
-    .is-preview .preview-note { display: block; }
-  </style>
+  <link rel="preload" href="assets/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="assets/site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "DigiClean",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "Windows 10, Windows 11, macOS 10.15 or later, Linux",
+    "description": "Finds duplicate files and folders by their contents, plus similar photos, songs and videos, and removes the extras safely.",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
 </head>
 <body>
-  <!-- Replaced with "owner/repo" by .github/workflows/website.yml at deploy time. -->
+  <!-- Replaced with "owner/repo" by vercel-build.sh at deploy time. -->
   <script>window.DIGICLEAN_REPO = "__GITHUB_REPOSITORY__";</script>
+  <a class="skip" href="#main">Skip to content</a>
 
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="i-download" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="square" d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="square" d="M5 12h13m-5-6 6 6-6 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-finger" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M7.5 5.2A7 7 0 0 1 19 10.5c0 3-.6 5.6-1.6 8M5 9a7 7 0 0 0-.2 1.5c0 2 .4 3.4.8 4.4M12 10.5c0 3.5-.7 6.7-2 9.5m5.5-9.5c0 2.6-.4 5-1.1 7.2M8.5 10.5a3.5 3.5 0 0 1 7 0"/></symbol>
+    <symbol id="i-similar" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="miter"><path d="M8 8h13v13H8z"/><path d="M16 4H3v13"/><path d="m8 18 4-4 3 3 2-2 4 4"/></g></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 5 6v5.5c0 4.3 3 8 7 9.5 4-1.5 7-5.2 7-9.5V6z"/><path stroke-linecap="square" d="m9 12 2.2 2.2L15.5 10"/></g></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.5" d="M3 7h18M3 12h18M3 17h18"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.5" d="m5 5 14 14M19 5 5 19"/></symbol>
     <symbol id="i-windows" viewBox="0 0 24 24"><path fill="currentColor" d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></symbol>
     <symbol id="i-apple" viewBox="0 0 24 24"><path fill="currentColor" d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.6.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8-.1 0-2.6-1-2.6-3.9ZM14 5.4c.7-.8 1.1-1.9 1-3-1 0-2.1.6-2.8 1.4-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.5 2.8-1.3Z"/></symbol>
     <symbol id="i-linux" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2c-2.2 0-3.5 1.9-3.5 4.4 0 1.3.3 2.1-.4 3.3-.8 1.4-2.4 3.4-2.6 5.6-.1 1 .1 1.8.6 2.4-.8.4-1.7.8-1.7 1.7 0 1.3 1.9 1.4 3 1.6.9.2 1.8 1 2.7 1 .8 0 1.4-.5 1.9-.9.6.1 1.3.1 2 0 .5.4 1.1.9 1.9.9.9 0 1.8-.8 2.7-1 1.1-.2 3-.3 3-1.6 0-.9-.9-1.3-1.7-1.7.5-.6.7-1.4.6-2.4-.2-2.2-1.8-4.2-2.6-5.6-.7-1.2-.4-2-.4-3.3C15.5 3.9 14.2 2 12 2Zm-1.6 4.1c.5 0 .8.6.8 1.2 0 .2 0 .4-.1.5l-.3-.1c-.2-.1-.4-.1-.6 0 0-.1-.1-.3-.1-.4 0-.7.1-1.2.3-1.2Zm3.2 0c.4 0 .7.5.7 1.1 0 .2 0 .3-.1.4-.3-.1-.6-.1-.8 0v-.3c0-.7.1-1.2.2-1.2Zm-1.6 2c.8 0 1.9.6 1.9 1s-1 1.2-1.9 1.2-1.9-.8-1.9-1.2 1.1-1 1.9-1Z"/></symbol>
-    <symbol id="i-download" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></symbol>
-    <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="m5 12.5 4.2 4.2L19 7"/></symbol>
-    <symbol id="i-lock" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z"/></symbol>
-    <symbol id="i-finger" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M7.5 5.2A7 7 0 0 1 19 10.5c0 3-.6 5.6-1.6 8M5 9a7 7 0 0 0-.2 1.5c0 2 .4 3.4.8 4.4M12 10.5c0 3.5-.7 6.7-2 9.5m5.5-9.5c0 2.6-.4 5-1.1 7.2M8.5 10.5a3.5 3.5 0 0 1 7 0"/></symbol>
-    <symbol id="i-folders" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M3 8h6l2 2h8v9H3zM7 8V5h5l2 2h7v9"/></symbol>
-    <symbol id="i-bolt" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M13 3 5 13.5h6l-1 7.5 8-10.5h-6z"/></symbol>
-    <symbol id="i-shield" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 3 5 6v5.5c0 4.3 3 8 7 9.5 4-1.5 7-5.2 7-9.5V6z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m9 12 2.2 2.2L15.5 10"/></symbol>
-    <symbol id="i-wand" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m4 20 11-11m-2-4 .7 1.6L15.3 7l-1.6.7L13 9.3l-.7-1.6L10.7 7l1.6-.7zM18 12l.5 1.2 1.2.5-1.2.5L18 15.4l-.5-1.2-1.2-.5 1.2-.5z"/></symbol>
-    <symbol id="i-sparkle" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2c.6 4.7 2.8 7.3 8 8-5.2.7-7.4 3.3-8 10-.6-6.7-2.8-9.3-8-10 5.2-.7 7.4-3.3 8-8Z"/></symbol>
-    <symbol id="i-undo" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .6a11.5 11.5 0 0 0-3.64 22.4c.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.37-3.87-1.37-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.08-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.82 1.19 3.08 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .6Z"/></symbol>
+    <symbol id="i-rss" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="square"><path d="M4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16"/><path d="M5 19h.01" stroke-width="4"/></g></symbol>
+    <symbol id="i-bug" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><path d="M8 9h8v6a4 4 0 0 1-8 0z"/><path d="M9 9V7a3 3 0 0 1 6 0v2M4 13h4m8 0h4M5 8l3 2m11-2-3 2M5 19l3-2m11 2-3-2"/></g></symbol>
   </svg>
 
-  <div class="band">
-  <header>
+  <header class="site-header">
     <div class="wrap nav">
-      <a class="brand" href="#top"><img src="assets/icon-512.png" alt="">DigiClean</a>
+      <a class="logo" href="#top" aria-label="DigiClean, back to top"><span class="logo-mark" aria-hidden="true"></span>DigiClean</a>
       <nav class="nav-links" aria-label="Main">
         <a href="#features">Features</a>
-        <a href="#how">How it works</a>
+        <a href="#scenarios">Use cases</a>
+        <a href="#pricing">Pricing</a>
         <a href="#download">Download</a>
         <a href="#faq">FAQ</a>
       </nav>
-      <a class="btn btn-mint btn-small" href="#download">Download</a>
+      <a class="btn btn--primary btn--small" href="#download" data-primary-download><svg class="i"><use href="#i-download"/></svg><span data-label>Download</span></a>
+      <button class="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="Open menu">
+        <svg class="i-open"><use href="#i-menu"/></svg><svg class="i-close" style="display:none"><use href="#i-close"/></svg>
+      </button>
     </div>
+    <nav class="wrap mobile-menu" id="mobile-menu" aria-label="Main" hidden>
+      <a href="#features">Features</a>
+      <a href="#scenarios">Use cases</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#download">Download</a>
+      <a href="#faq">FAQ</a>
+      <a class="btn btn--primary btn--block" href="#download" data-primary-download><svg class="i"><use href="#i-download"/></svg><span data-label>Download DigiClean</span></a>
+    </nav>
   </header>
 
-    <div class="wrap hero" id="top">
-      <div>
-        <span class="tagline"><svg><use href="#i-sparkle"/></svg>Duplicate file &amp; folder finder</span>
-        <h1>Find every duplicate.<br><em>Keep what matters.</em></h1>
-        <p class="lead">DigiClean compares files by their contents, not their names, so it finds copies even when they were renamed or moved. It shows you exactly where each copy lives and removes the extras without ever touching the last one.</p>
-        <div class="cta">
-          <a class="btn btn-mint btn-big" id="primary-download" href="#download">
-            <svg><use href="#i-download"/></svg>
-            <span><span id="primary-label">Download DigiClean</span><span class="sub" id="primary-sub">Windows · macOS · Linux</span></span>
-          </a>
-          <a class="btn btn-outline btn-big" href="#download">Other platforms</a>
-        </div>
-        <p class="meta">For Windows, macOS and Linux · <span id="version-line">Latest release</span> · runs entirely on your device</p>
-        <p class="preview-note">Preview: download links activate once the site is published from the GitHub repository.</p>
+  <main id="main">
+    <!-- ============================================================ HERO -->
+    <section class="wrap hero" id="top" aria-labelledby="hero-title">
+      <div class="hero-eyebrow">
+        <span class="badge">Duplicate file &amp; folder finder</span>
+        <span class="label">Windows · macOS · Linux · Free</span>
       </div>
-      <div class="window" aria-label="DigiClean showing duplicate groups with copies marked Keep and Remove">
-        <div class="window-bar"><span></span><span></span><span></span></div>
-        <img src="assets/screenshot-desktop-dark.png" width="1280" height="800" alt="DigiClean results: duplicate groups with each copy's location and Keep / Remove labels">
-      </div>
-    </div>
-  </div>
+      <h1 id="hero-title">
+        <span class="line">Keep <span class="one">one</span>.</span>
+        <span class="line">Clear <span class="ghost">the rest.</span></span>
+      </h1>
 
-  <main>
-    <div class="wrap trust">
-      <div><svg><use href="#i-lock"/></svg>No account, no upload</div>
-      <div><svg><use href="#i-shield"/></svg>One copy is always kept</div>
-      <div><svg><use href="#i-undo"/></svg>Removals can be undone</div>
-      <div><svg><use href="#i-bolt"/></svg>Rescans in seconds</div>
-    </div>
-
-    <section id="features">
-      <div class="wrap">
-        <div class="section-head">
-          <h2>Accurate by design, careful by default</h2>
-          <p>Built for big photo libraries, messy Downloads folders and old backups.</p>
-        </div>
-        <div class="grid">
-          <div class="card"><div class="icon"><svg><use href="#i-finger"/></svg></div><h3>Matches by content</h3><p>Every candidate is fingerprinted with BLAKE3 or SHA-256. Renamed, moved and re-downloaded copies are all found. Optional byte-by-byte check for absolute certainty.</p></div>
-          <div class="card"><div class="icon"><svg><use href="#i-folders"/></svg></div><h3>Duplicate folders too</h3><p>Finds whole folders with identical structure and contents, such as a backup of a backup, plus empty folders left behind.</p></div>
-          <div class="card"><div class="icon"><svg><use href="#i-bolt"/></svg></div><h3>Fast on huge drives</h3><p>A parallel engine reads only what it must: files with unique sizes are skipped and fingerprints are remembered, so the next scan only reads what changed.</p></div>
-          <div class="card"><div class="icon"><svg><use href="#i-shield"/></svg></div><h3>Safe cleanup</h3><p>The last copy of anything is never removed, files are re-checked right before removal, and anything changed since the scan is skipped.</p></div>
-          <div class="card"><div class="icon"><svg><use href="#i-wand"/></svg></div><h3>Smart select</h3><p>Keep the newest, the oldest, or whatever is in your Pictures folder, across thousands of groups in one click. Fine-tune any group by hand.</p></div>
-          <div class="card"><div class="icon"><svg><use href="#i-undo"/></svg></div><h3>Undo and recovery</h3><p>Removed items go to the Recycle Bin / Trash or DigiClean's own recovery bin, ready to restore. You can also move duplicates or replace them with hard links.</p></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="how" style="padding-top:0">
-      <div class="wrap">
-        <div class="section-head">
-          <h2>Three steps to a tidy disk</h2>
-        </div>
-        <div class="steps">
-          <div class="step"><h3>Pick folders</h3><p>Choose drives or folders. Add filters for file types, sizes or folders to skip.</p></div>
-          <div class="step"><h3>Scan</h3><p>DigiClean groups identical files and folders and shows how much space you can get back.</p></div>
-          <div class="step"><h3>Review &amp; clean</h3><p>Each copy is labelled <strong>Keep</strong> or <strong>Remove</strong>. Confirm, and get your space back.</p></div>
-        </div>
-      </div>
-    </section>
-
-    <section style="padding-top:0">
-      <div class="wrap showcase">
-        <div class="window">
-          <div class="window-bar"><span></span><span></span><span></span></div>
-          <img class="shot-dark" src="assets/screenshot-desktop.png" width="1280" height="800" loading="lazy" alt="DigiClean results in the light theme">
-          <img class="shot-light" src="assets/screenshot-desktop-dark.png" width="1280" height="800" loading="lazy" alt="DigiClean results in the dark theme">
-        </div>
+      <div class="hero-body">
         <div>
-          <h2>See exactly what goes and what stays</h2>
-          <ul class="checks">
-            <li><svg><use href="#i-check"/></svg><span><strong>Only what differs.</strong> Copies are labelled by the folders that set them apart, like “Backup › iPhone 2024” vs “Pictures › Lisbon trip”.</span></li>
-            <li><svg><use href="#i-check"/></svg><span><strong>Compare before you decide.</strong> Preview the content, see every location with its dates, and verify the copies are identical.</span></li>
-            <li><svg><use href="#i-check"/></svg><span><strong>Light and dark.</strong> Follows your system theme and works from small windows to big screens.</span></li>
-          </ul>
+          <p class="lead">DigiClean compares files by their contents, not their names, so it finds copies even after they were renamed or moved. It shows you where every copy lives, and removes the extras without ever touching the last one.</p>
+          <div class="cta">
+            <a class="btn btn--primary" href="#download" data-primary-download>
+              <svg class="i"><use href="#i-download"/></svg>
+              <span><span data-label>Download DigiClean</span><span class="sub" data-sub>Windows · macOS · Linux</span></span>
+            </a>
+            <a class="btn btn--ghost" href="#features">How it works <svg class="i"><use href="#i-arrow"/></svg></a>
+          </div>
+          <p class="hero-meta"><span data-version>Latest release</span> · No account · Runs entirely on your device</p>
+          <p class="preview-note">Preview: download links activate once the site is deployed with the GitHub repository name.</p>
+        </div>
+
+        <div class="stack" aria-hidden="true">
+          <div class="stack-plane">
+            <div class="sheet"><span class="sheet-path">Desktop › old stuff</span><span class="sheet-name">copy of IMG_2041.jpg</span><span class="sheet-tag">Remove</span></div>
+            <div class="sheet"><span class="sheet-path">Downloads</span><span class="sheet-name">IMG_2041 (1).jpg</span><span class="sheet-tag">Remove</span></div>
+            <div class="sheet"><span class="sheet-path">Backup › iPhone 2024</span><span class="sheet-name">IMG_2041.jpg</span><span class="sheet-tag">Remove</span></div>
+            <div class="sheet sheet--keep"><span class="sheet-path">Pictures › Lisbon trip</span><span class="sheet-name">IMG_2041.jpg</span><span class="sheet-tag">Keep</span></div>
+          </div>
         </div>
       </div>
     </section>
 
-    <section id="download" class="downloads">
+    <!-- ============================================================ FEATURES -->
+    <section class="section" id="features" aria-labelledby="features-title" style="padding-top:0">
       <div class="wrap">
         <div class="section-head">
-          <h2>Download DigiClean</h2>
-          <p id="download-version">Pick your platform.</p>
-        </div>
-        <div class="grid">
-          <div class="card dl" data-os="windows">
-            <div class="dl-head"><svg><use href="#i-windows"/></svg><h3>Windows</h3><span class="badge" hidden>Your system</span></div>
-            <p class="req">Windows 10 (1809) or newer · 64-bit</p>
-            <a class="btn btn-primary" data-asset="DigiClean-Windows-Setup.exe"><svg><use href="#i-download"/></svg>Installer (.exe)</a>
-            <div class="alt"><a data-asset="DigiClean-Windows-Portable.zip">Portable .zip</a></div>
-          </div>
-          <div class="card dl" data-os="mac">
-            <div class="dl-head"><svg><use href="#i-apple"/></svg><h3>macOS</h3><span class="badge" hidden>Your system</span></div>
-            <p class="req">macOS 10.15 or newer · Apple silicon &amp; Intel</p>
-            <a class="btn btn-primary" data-asset="DigiClean-macOS.dmg"><svg><use href="#i-download"/></svg>Disk image (.dmg)</a>
-            <div class="alt"><span>Universal app</span></div>
-          </div>
-          <div class="card dl" data-os="linux">
-            <div class="dl-head"><svg><use href="#i-linux"/></svg><h3>Linux</h3><span class="badge" hidden>Your system</span></div>
-            <p class="req">64-bit (x86_64) · GTK 3 · glibc 2.35+</p>
-            <a class="btn btn-primary" data-asset="DigiClean-Linux-x86_64.AppImage"><svg><use href="#i-download"/></svg>AppImage</a>
-            <div class="alt"><a data-asset="digiclean_amd64.deb">Debian / Ubuntu (.deb)</a><a data-asset="DigiClean-Linux-x86_64.tar.gz">.tar.gz</a></div>
+          <span class="label">01 — Features</span>
+          <div>
+            <h2 id="features-title">Accurate by design. Careful by default.</h2>
+            <p>Built for big photo libraries, messy Downloads folders and old backups.</p>
           </div>
         </div>
-        <p class="release-info"><a id="release-notes" href="#">Release notes</a> · <a data-asset="SHA256SUMS.txt">SHA-256 checksums</a> · <a id="all-releases" href="#">All releases</a></p>
+
+        <div class="cards">
+          <article class="card">
+            <div class="card-top"><span class="card-index">01</span><span class="card-icon"><svg><use href="#i-finger"/></svg></span></div>
+            <h3>By content.</h3>
+            <p>Every candidate is fingerprinted with BLAKE3 or SHA-256, so renamed, moved and re-downloaded copies are all found, with an optional byte-by-byte check.</p>
+            <ul>
+              <li><svg class="i"><use href="#i-check"/></svg>Whole duplicate folders, like a backup of a backup</li>
+              <li><svg class="i"><use href="#i-check"/></svg>Rescans read only what changed</li>
+            </ul>
+          </article>
+          <article class="card" id="similar">
+            <div class="card-top"><span class="card-index">02</span><span class="card-icon"><svg><use href="#i-similar"/></svg></span></div>
+            <h3>By likeness.</h3>
+            <p>Photos that look the same after being resized, re-saved or recompressed, and songs or videos that sound the same in another format or bitrate.</p>
+            <ul>
+              <li><svg class="i"><use href="#i-check"/></svg>Picks the best shot of a burst</li>
+              <li><svg class="i"><use href="#i-check"/></svg>Spots blurry, dark and screenshot images</li>
+            </ul>
+          </article>
+          <article class="card">
+            <div class="card-top"><span class="card-index">03</span><span class="card-icon"><svg><use href="#i-shield"/></svg></span></div>
+            <h3>Safely.</h3>
+            <p>The last copy of anything is never removed. Files are checked again right before removal, and anything changed since the scan is skipped.</p>
+            <ul>
+              <li><svg class="i"><use href="#i-check"/></svg>Recycle Bin / Trash or DigiClean's Recovery Bin</li>
+              <li><svg class="i"><use href="#i-check"/></svg>Or replace copies with hard links</li>
+            </ul>
+          </article>
+        </div>
+
+        <figure class="figure" style="margin-top:clamp(48px,6vw,80px)">
+          <picture>
+            <source srcset="assets/screenshot-desktop-dark.png" media="(prefers-color-scheme: dark)">
+            <img src="assets/screenshot-desktop.png" width="1280" height="800" loading="lazy" alt="DigiClean results: duplicate groups listing each copy's folder, with Keep and Remove labels">
+          </picture>
+          <figcaption class="label"><span>Fig. 1 — Results</span><span>Each copy is labelled by the folders that set it apart, then marked Keep or Remove.</span></figcaption>
+        </figure>
       </div>
     </section>
 
-    <section id="faq">
+    <!-- ============================================================ SCENARIOS (in place of testimonials) -->
+    <section class="section" id="scenarios" aria-labelledby="scenarios-title" style="padding-top:0">
       <div class="wrap">
-        <div class="section-head"><h2>Questions</h2></div>
+        <div class="section-head">
+          <span class="label">02 — Use cases</span>
+          <div>
+            <h2 id="scenarios-title">Sound familiar?</h2>
+            <p>Three piles of copies almost every computer has. DigiClean was made for them.</p>
+          </div>
+        </div>
+        <div class="cards">
+          <figure class="card scenario">
+            <blockquote>The phone backup you imported three times.</blockquote>
+            <p>The same photos under three folder names. DigiClean groups them by content and names each copy by where it lives, so you keep the one in the right album.</p>
+            <figcaption class="label">Photos · Exact &amp; similar</figcaption>
+          </figure>
+          <figure class="card scenario">
+            <blockquote>A Downloads folder full of “(1)” and “(2)”.</blockquote>
+            <p>Installers and PDFs saved twice. Smart select keeps the newest, the oldest or the one in a folder you choose, across thousands of groups in one click.</p>
+            <figcaption class="label">Downloads · Smart select</figcaption>
+          </figure>
+          <figure class="card scenario">
+            <blockquote>The backup of a backup of a backup.</blockquote>
+            <p>Folders that match file for file are found as one duplicate folder, so you remove one folder instead of ten thousand files.</p>
+            <figcaption class="label">Folders · Whole-folder matches</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ PRICING -->
+    <section class="section" id="pricing" aria-labelledby="pricing-title" style="padding-top:0">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="label">03 — Pricing</span>
+          <div>
+            <h2 id="pricing-title">Free. However you install it.</h2>
+            <p>No subscription, no account, no trial. Pick the way you like to install software.</p>
+          </div>
+        </div>
+        <div class="tiers">
+          <article class="tier">
+            <h3>Portable</h3>
+            <div class="price">$0<small>Windows</small></div>
+            <p>Unzip and run, from any folder or a USB stick. Nothing is installed.</p>
+            <ul>
+              <li><svg class="i"><use href="#i-check"/></svg>Every feature</li>
+              <li><svg class="i"><use href="#i-check"/></svg>Leaves no trace when deleted</li>
+              <li><svg class="i"><use href="#i-check"/></svg>No administrator rights</li>
+            </ul>
+            <a class="btn btn--ghost btn--block" data-asset="DigiClean-Windows-Portable.zip"><svg class="i"><use href="#i-download"/></svg>Portable .zip</a>
+          </article>
+          <article class="tier tier--featured" aria-label="Installer, recommended">
+            <span class="badge badge--accent" style="align-self:flex-start">Recommended</span>
+            <h3>Installer</h3>
+            <div class="price">$0<small>Every platform</small></div>
+            <p>A proper app on Windows, macOS and Linux, with a Start menu or Applications entry and a clean uninstall.</p>
+            <ul>
+              <li><svg class="i"><use href="#i-check"/></svg>Every feature</li>
+              <li><svg class="i"><use href="#i-check"/></svg>For you only, or for everyone on the PC</li>
+              <li><svg class="i"><use href="#i-check"/></svg>Updates install in place</li>
+            </ul>
+            <a class="btn btn--primary btn--block" href="#download" data-primary-download><svg class="i"><use href="#i-download"/></svg><span data-label>Choose your platform</span></a>
+          </article>
+          <article class="tier">
+            <h3>Source</h3>
+            <div class="price">$0<small>Build it</small></div>
+            <p>The full source on GitHub: a Rust engine and a Flutter app. Read it, build it, report issues.</p>
+            <ul>
+              <li><svg class="i"><use href="#i-check"/></svg>Every feature</li>
+              <li><svg class="i"><use href="#i-check"/></svg>Checksums for every release</li>
+              <li><svg class="i"><use href="#i-check"/></svg>Built and tested in public CI</li>
+            </ul>
+            <a class="btn btn--ghost btn--block" data-gh=""><svg class="i"><use href="#i-github"/></svg>View on GitHub</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ DOWNLOAD -->
+    <section class="section" id="download" aria-labelledby="download-title" style="padding-top:0">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="label">04 — Download</span>
+          <div>
+            <h2 id="download-title">Get DigiClean.</h2>
+            <p data-version>Latest release, straight from GitHub.</p>
+          </div>
+        </div>
+
+        <div class="dl-row" data-os="windows" id="windows">
+          <div class="dl-name"><svg><use href="#i-windows"/></svg>Windows</div>
+          <p class="dl-req"><strong>Windows 10 (1809) or 11, 64-bit</strong>Installer adds a Start menu entry, a desktop shortcut and an Apps entry.</p>
+          <div class="dl-files">
+            <span class="badge badge--accent">Your system</span>
+            <a class="btn" data-asset="DigiClean-Windows-Setup.exe"><svg class="i"><use href="#i-download"/></svg>Installer (.exe)</a>
+            <div class="dl-alt"><a data-asset="DigiClean-Windows-Portable.zip">Portable .zip</a></div>
+          </div>
+        </div>
+        <div class="dl-row" data-os="mac" id="macos">
+          <div class="dl-name"><svg><use href="#i-apple"/></svg>macOS</div>
+          <p class="dl-req"><strong>macOS 10.15 or newer</strong>One universal app for Apple silicon and Intel Macs.</p>
+          <div class="dl-files">
+            <span class="badge badge--accent">Your system</span>
+            <a class="btn" data-asset="DigiClean-macOS.dmg"><svg class="i"><use href="#i-download"/></svg>Disk image (.dmg)</a>
+          </div>
+        </div>
+        <div class="dl-row" data-os="linux" id="linux">
+          <div class="dl-name"><svg><use href="#i-linux"/></svg>Linux</div>
+          <p class="dl-req"><strong>64-bit (x86_64), glibc 2.35+</strong>Runs on most distributions; the folder picker uses zenity or kdialog.</p>
+          <div class="dl-files">
+            <span class="badge badge--accent">Your system</span>
+            <a class="btn" data-asset="DigiClean-Linux-x86_64.AppImage"><svg class="i"><use href="#i-download"/></svg>AppImage</a>
+            <div class="dl-alt"><a data-asset="digiclean_amd64.deb">Debian / Ubuntu (.deb)</a><a data-asset="DigiClean-Linux-x86_64.tar.gz">.tar.gz</a></div>
+          </div>
+        </div>
+        <div class="dl-meta">
+          <a data-gh="/releases/latest">Release notes</a>
+          <a data-asset="SHA256SUMS.txt">SHA-256 checksums</a>
+          <a data-gh="/releases">All releases</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ FAQ -->
+    <section class="section" id="faq" aria-labelledby="faq-title" style="padding-top:0">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="label">05 — Questions</span>
+          <div><h2 id="faq-title">Before you start.</h2></div>
+        </div>
         <div class="faq">
           <details>
             <summary>Is it safe to remove what DigiClean finds?</summary>
-            <p>Only files with byte-identical contents are grouped. In every group at least one copy is always kept, each file is checked again right before removal, and anything that changed since the scan is skipped. By default removed items go to the Recycle Bin / Trash, so you can restore them.</p>
+            <p>Exact duplicates are grouped only when their contents are byte-identical. At least one copy in every group is always kept, each file is checked again right before removal, and anything that changed since the scan is skipped. By default removed items go to the Recycle Bin / Trash, so you can restore them.</p>
           </details>
           <details>
             <summary>Does DigiClean upload my files or collect data?</summary>
-            <p>No. Scanning and hashing happen entirely on your computer. DigiClean needs no account and sends no file names, hashes or usage data anywhere.</p>
+            <p>No. Scanning and fingerprinting happen entirely on your computer. DigiClean needs no account and makes no network connections, so no file names, fingerprints or usage data leave your device. See the <a href="legal.html#privacy">privacy policy</a>.</p>
           </details>
           <details>
             <summary>Windows shows “Windows protected your PC”</summary>
@@ -401,79 +311,94 @@
           </details>
           <details>
             <summary>macOS says the app can't be opened</summary>
-            <p>If the build isn't notarized by Apple yet, open <strong>System Settings › Privacy &amp; Security</strong> and click <strong>Open Anyway</strong> next to DigiClean (on older macOS: right-click the app and choose <strong>Open</strong>). macOS may also ask before DigiClean reads folders like Desktop or Documents; allow it to scan them.</p>
+            <p>If the build isn't notarized by Apple yet, open <strong>System Settings › Privacy &amp; Security</strong> and click <strong>Open Anyway</strong> next to DigiClean (on older macOS: right-click the app and choose <strong>Open</strong>).</p>
           </details>
           <details>
             <summary>How do I run the Linux AppImage?</summary>
-            <p>Make it executable and start it: <code>chmod +x DigiClean-Linux-x86_64.AppImage</code> then <code>./DigiClean-Linux-x86_64.AppImage</code>. On Debian or Ubuntu you can install the <code>.deb</code> instead: <code>sudo apt install ./digiclean_amd64.deb</code>.</p>
+            <p>Make it executable and start it: <code>chmod +x DigiClean-Linux-x86_64.AppImage</code>, then <code>./DigiClean-Linux-x86_64.AppImage</code>. On Debian or Ubuntu you can install the package instead: <code>sudo apt install ./digiclean_amd64.deb</code>.</p>
           </details>
           <details>
             <summary>How does it decide two files are duplicates?</summary>
-            <p>Files are first grouped by size, then by a quick fingerprint of sampled blocks, then by a full BLAKE3 (default) or SHA-256 hash of the complete contents. You can add a byte-by-byte comparison. Hard links are recognised as one file, so they are never counted as wasted space.</p>
+            <p>Files are grouped by size, then by a quick fingerprint of sampled blocks, then by a full BLAKE3 (default) or SHA-256 hash of the complete contents. You can add a byte-by-byte comparison. Hard links are recognised as one file, so they are never counted as wasted space.</p>
           </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ FINAL CTA -->
+    <section class="final" aria-labelledby="final-title">
+      <div class="wrap">
+        <h2 id="final-title">Get your disk <span class="accent">back.</span></h2>
+        <div class="final-row">
+          <p>Scan a folder, see how much space the copies take, and decide what goes. It takes minutes, and nothing is removed until you say so.</p>
+          <div class="cta" style="margin-top:0">
+            <a class="btn btn--primary" href="#download" data-primary-download><svg class="i"><use href="#i-download"/></svg><span data-label>Download DigiClean</span></a>
+            <a class="btn btn--ghost" data-gh=""><svg class="i"><use href="#i-github"/></svg>Source</a>
+          </div>
         </div>
       </div>
     </section>
   </main>
 
-  <footer>
+  <!-- ============================================================ FOOTER -->
+  <footer class="site-footer">
     <div class="wrap">
-      <span class="footer-brand"><img src="assets/icon-512.png" alt="">© <span id="year">2026</span> DigiClean · Duplicate file &amp; folder finder</span>
-      <span><a id="footer-repo" href="#">Source &amp; releases</a></span>
+      <div class="footer-grid">
+        <div class="footer-about">
+          <a class="logo" href="#top"><span class="logo-mark" aria-hidden="true"></span>DigiClean</a>
+          <p>A careful duplicate file and folder finder for Windows, macOS and Linux. Free, with no account, and everything stays on your device.</p>
+          <div class="social">
+            <a data-gh="" aria-label="DigiClean on GitHub" title="GitHub"><svg><use href="#i-github"/></svg></a>
+            <a data-gh="/releases.atom" aria-label="Release feed (RSS / Atom)" title="Release feed"><svg><use href="#i-rss"/></svg></a>
+            <a data-gh="/issues" aria-label="Report a problem on GitHub" title="Issues"><svg><use href="#i-bug"/></svg></a>
+          </div>
+        </div>
+        <nav aria-labelledby="f-product">
+          <h2 id="f-product">Product</h2>
+          <ul>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#scenarios">Use cases</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="#faq">FAQ</a></li>
+          </ul>
+        </nav>
+        <nav aria-labelledby="f-download">
+          <h2 id="f-download">Download</h2>
+          <ul>
+            <li><a href="#windows">Duplicate file finder for Windows</a></li>
+            <li><a href="#macos">Duplicate file finder for Mac</a></li>
+            <li><a href="#linux">Duplicate file finder for Linux</a></li>
+            <li><a href="#similar">Find similar photos</a></li>
+          </ul>
+        </nav>
+        <nav aria-labelledby="f-help">
+          <h2 id="f-help">Help</h2>
+          <ul>
+            <li><a data-gh="/releases/latest">Release notes</a></li>
+            <li><a data-gh="/issues">Report a problem</a></li>
+            <li><a data-gh="/issues/new">Contact</a></li>
+          </ul>
+        </nav>
+        <nav aria-labelledby="f-legal">
+          <h2 id="f-legal">Legal</h2>
+          <ul>
+            <li><a href="legal.html#privacy">Privacy policy</a></li>
+            <li><a href="legal.html#terms">Terms of use</a></li>
+          </ul>
+        </nav>
+      </div>
+      <div class="footer-bottom">
+        <span>© <span data-year>2026</span> DigiClean. All rights reserved.</span>
+        <nav aria-label="Legal">
+          <a href="legal.html#privacy">Privacy</a>
+          <a href="legal.html#terms">Terms</a>
+          <a data-gh="/issues/new">Contact</a>
+        </nav>
+      </div>
     </div>
+    <div class="wrap"><span class="wordmark" aria-hidden="true">DigiClean<span>.</span></span></div>
   </footer>
 
-  <script>
-    (function () {
-      var repo = window.DIGICLEAN_REPO;
-      var published = repo && repo.indexOf("__") !== 0;
-      var base = published ? "https://github.com/" + repo : null;
-      if (!published) document.body.classList.add("is-preview");
-
-      // Every download link points at the newest release; file names are stable.
-      document.querySelectorAll("[data-asset]").forEach(function (a) {
-        a.href = published ? base + "/releases/latest/download/" + a.getAttribute("data-asset") : "#download";
-      });
-      ["release-notes", "all-releases", "footer-repo"].forEach(function (id) {
-        var el = document.getElementById(id);
-        if (el) el.href = published ? base + (id === "footer-repo" ? "" : "/releases" + (id === "release-notes" ? "/latest" : "")) : "#download";
-      });
-      document.getElementById("year").textContent = new Date().getFullYear();
-
-      // Recommend the visitor's platform.
-      var ua = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || "";
-      ua = ua.toLowerCase();
-      var mobile = /android|iphone|ipad|ipod/.test((navigator.userAgent || "").toLowerCase());
-      var os = mobile ? null : /win/.test(ua) ? "windows" : /mac/.test(ua) ? "mac" : /linux|x11|cros/.test(ua) ? "linux" : null;
-      var labels = {
-        windows: ["Download for Windows", "Installer · 64-bit"],
-        mac: ["Download for macOS", "Universal · Apple silicon & Intel"],
-        linux: ["Download for Linux", "AppImage · x86_64"]
-      };
-      if (os) {
-        var card = document.querySelector('.dl[data-os="' + os + '"]');
-        card.classList.add("recommended");
-        card.querySelector(".badge").hidden = false;
-        document.getElementById("primary-label").textContent = labels[os][0];
-        document.getElementById("primary-sub").textContent = labels[os][1];
-        document.getElementById("primary-download").href = card.querySelector(".btn").href;
-      } else if (mobile) {
-        document.getElementById("primary-sub").textContent = "Available for Windows, macOS and Linux";
-      }
-
-      // Show the latest version number (best effort; links work without it).
-      if (published && window.fetch) {
-        fetch("https://api.github.com/repos/" + repo + "/releases/latest")
-          .then(function (r) { return r.ok ? r.json() : null; })
-          .then(function (rel) {
-            if (!rel || !rel.tag_name) return;
-            var date = rel.published_at ? new Date(rel.published_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
-            document.getElementById("version-line").textContent = "Version " + rel.tag_name.replace(/^v/, "") + (date ? " · " + date : "");
-            document.getElementById("download-version").textContent = "Version " + rel.tag_name.replace(/^v/, "") + (date ? ", released " + date : "") + ".";
-          })
-          .catch(function () {});
-      }
-    })();
-  </script>
+  <script src="assets/site.js"></script>
 </body>
 </html>

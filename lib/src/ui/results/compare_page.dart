@@ -10,6 +10,7 @@ import '../../rust/api/maintenance.dart';
 import '../../rust/api/results.dart';
 import '../../rust/api/types.dart';
 import '../../state/results_controller.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/file_preview.dart';
 import '../widgets/path_text.dart';
@@ -169,7 +170,7 @@ class _FileCompareViewState extends ConsumerState<FileCompareView> {
         ),
         const SizedBox(height: 12),
         InkWell(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.zero,
           onTap: () {
             Clipboard.setData(ClipboardData(text: g.hash));
             showMessage(context, 'Hash copied');
@@ -242,8 +243,8 @@ class _LocationTile extends StatelessWidget {
               children: [
                 if (showStatus) ...[
                   selected
-                      ? TagChip('Remove', color: scheme.error)
-                      : TagChip('Keep', color: scheme.primary, icon: Icons.check),
+                      ? TagChip('Remove', color: context.ds.ink, outlined: true)
+                      : TagChip('Keep', color: context.ds.accent, icon: Icons.check),
                   const SizedBox(width: 8),
                 ],
                 Expanded(

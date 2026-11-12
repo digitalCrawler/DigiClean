@@ -31,6 +31,7 @@ pub mod media;
 pub mod model;
 pub mod paths;
 pub mod photos;
+pub mod priority;
 pub mod platform;
 pub mod progress;
 pub mod recovery;
