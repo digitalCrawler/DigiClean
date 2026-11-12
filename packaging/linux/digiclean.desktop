@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=DigiClean
+GenericName=Duplicate File Finder
+Comment=Find and remove duplicate files and folders by their contents
+Exec=digiclean
+Icon=digiclean
+Terminal=false
+Categories=Utility;FileTools;
+Keywords=duplicate;duplicates;dedupe;clean;storage;disk;
+StartupWMClass=digiclean

@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DigiClean — Find and remove duplicate files safely</title>
+  <meta name="description" content="DigiClean finds duplicate files and folders by their contents — even when renamed or moved — and removes the extras safely. For Windows, macOS and Linux.">
+  <meta name="theme-color" content="#112f47">
+  <meta property="og:title" content="DigiClean — Find and remove duplicate files safely">
+  <meta property="og:description" content="Content-based duplicate file and folder finder for Windows, macOS and Linux. Everything runs on your device.">
+  <meta property="og:image" content="assets/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta property="og:type" content="website">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="preload" href="assets/fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <style>
+    /* Brand: navy #112F47 + mint #6FD8B0 (branding/brand-sheet.png), Outfit display face. */
+    @font-face {
+      font-family: "Outfit";
+      src: url("assets/fonts/outfit-latin.woff2") format("woff2");
+      font-weight: 100 900;
+      font-display: swap;
+    }
+    :root {
+      --navy: #112f47;
+      --navy-deep: #0b2235;
+      --mint: #6fd8b0;
+      --bg: #f4f7fa;
+      --surface: #ffffff;
+      --surface-2: #ebf1f5;
+      --text: #0f2233;
+      --muted: #4e6274;
+      --border: #d9e3ea;
+      --brand: #112f47;
+      --brand-strong: #0b2235;
+      --on-brand: #ffffff;
+      --accent-ink: #17795a;
+      --accent-soft: #ddf5ec;
+      --band: #112f47;
+      --band-text: #ffffff;
+      --band-muted: rgba(255, 255, 255, 0.74);
+      --band-line: rgba(255, 255, 255, 0.16);
+      --shadow: 0 30px 70px -24px rgba(6, 22, 36, 0.55);
+      --radius: 16px;
+      --display: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --shot-light: block;
+      --shot-dark: none;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0a1825;
+        --surface: #0f2233;
+        --surface-2: #142b40;
+        --text: #e7eff5;
+        --muted: #9fb3c3;
+        --border: #21405a;
+        --brand: #6fd8b0;
+        --brand-strong: #9be5c8;
+        --on-brand: #0b2235;
+        --accent-ink: #6fd8b0;
+        --accent-soft: #143a3a;
+        --band: #0d2436;
+        --shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75);
+        --shot-light: none;
+        --shot-dark: block;
+        color-scheme: dark;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #0a1825;
+      --surface: #0f2233;
+      --surface-2: #142b40;
+      --text: #e7eff5;
+      --muted: #9fb3c3;
+      --border: #21405a;
+      --brand: #6fd8b0;
+      --brand-strong: #9be5c8;
+      --on-brand: #0b2235;
+      --accent-ink: #6fd8b0;
+      --accent-soft: #143a3a;
+      --band: #0d2436;
+      --shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75);
+      --shot-light: none;
+      --shot-dark: block;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .btn { transition: none; }
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.6 var(--body);
+      -webkit-font-smoothing: antialiased;
+    }
+    h1, h2, h3, .brand, .btn { font-family: var(--display); }
+    h1, h2 { text-wrap: balance; }
+    a { color: var(--accent-ink); }
+    img { max-width: 100%; height: auto; display: block; }
+    .wrap { width: min(1160px, 100% - 32px); margin-inline: auto; }
+    .shot-light { display: var(--shot-light); }
+    .shot-dark { display: var(--shot-dark); }
+    a:focus-visible, summary:focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; border-radius: 6px; }
+
+    /* Brand band: header + hero stay navy in every theme. */
+    .band {
+      background:
+        radial-gradient(900px 420px at 85% 10%, rgba(111, 216, 176, 0.16), transparent 60%),
+        var(--band);
+      color: var(--band-text);
+    }
+    header {
+      position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
+      background: color-mix(in srgb, var(--band) 92%, transparent);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--band-line);
+    }
+    .nav { display: flex; align-items: center; gap: 24px; height: 64px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 21px; letter-spacing: -0.01em; color: var(--band-text); text-decoration: none; }
+    .brand img { width: 34px; height: 34px; border-radius: 9px; box-shadow: 0 0 0 1px var(--band-line); }
+    .nav-links { display: flex; gap: 22px; margin-left: auto; }
+    .nav-links a { color: var(--band-muted); text-decoration: none; font-size: 15px; }
+    .nav-links a:hover { color: var(--band-text); }
+    .nav .btn { margin-left: 8px; }
+    @media (max-width: 720px) { .nav-links { display: none; } .nav .btn { margin-left: auto; } }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 12px 20px; border-radius: 12px; font-weight: 600; text-decoration: none;
+      border: 1px solid transparent; cursor: pointer; font-size: 15.5px; line-height: 1.2;
+      transition: transform .12s ease, background .12s ease, border-color .12s ease;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--brand); color: var(--on-brand); }
+    .btn-primary:hover { background: var(--brand-strong); }
+    .btn-mint { background: var(--mint); color: var(--navy-deep); }
+    .btn-mint:hover { background: #8ee3c2; }
+    .btn-outline { background: transparent; color: var(--band-text); border-color: rgba(255, 255, 255, 0.32); }
+    .btn-outline:hover { border-color: var(--mint); color: var(--mint); }
+    .btn-small { padding: 8px 14px; font-size: 14.5px; }
+    .btn svg { width: 20px; height: 20px; flex: none; }
+    .btn-big { padding: 16px 26px; font-size: 17.5px; border-radius: 14px; }
+    .btn-big .sub { display: block; font-family: var(--body); font-weight: 500; font-size: 12.5px; opacity: .8; margin-top: 2px; }
+
+    /* Hero */
+    .hero { padding: 76px 0 84px; display: grid; grid-template-columns: 1fr 1.15fr; gap: 56px; align-items: center; }
+    @media (max-width: 960px) { .hero { grid-template-columns: minmax(0, 1fr); padding: 44px 0 56px; gap: 40px; } }
+    .tagline { display: inline-flex; align-items: center; gap: 10px; color: var(--mint); font: 600 13px/1 var(--display); letter-spacing: 0.16em; text-transform: uppercase; }
+    .tagline svg { width: 14px; height: 14px; }
+    h1 { font-size: clamp(40px, 5.6vw, 64px); font-weight: 700; line-height: 1.02; letter-spacing: -0.025em; margin: 18px 0 20px; }
+    h1 em { font-style: normal; color: var(--mint); }
+    .lead { font-size: clamp(17px, 1.6vw, 19px); color: var(--band-muted); max-width: 34em; margin: 0 0 30px; }
+    .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .meta { margin-top: 16px; font-size: 13.5px; color: var(--band-muted); }
+    .window {
+      border-radius: 14px; overflow: hidden; border: 1px solid var(--border);
+      box-shadow: var(--shadow); background: var(--surface);
+    }
+    .band .window { border-color: var(--band-line); background: var(--navy-deep); }
+    .window-bar { display: flex; gap: 7px; padding: 11px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+    .band .window-bar { background: #0f2a40; border-color: var(--band-line); }
+    .window-bar span { width: 11px; height: 11px; border-radius: 50%; background: var(--border); }
+    .band .window-bar span { background: rgba(255, 255, 255, 0.18); }
+
+    /* Trust strip */
+    .trust { display: flex; flex-wrap: wrap; gap: 12px 32px; justify-content: center; padding: 26px 0 6px; color: var(--muted); font-size: 15px; }
+    .trust div { display: flex; align-items: center; gap: 8px; }
+    .trust svg { width: 18px; height: 18px; color: var(--accent-ink); }
+
+    /* Sections */
+    section { padding: 80px 0; }
+    .section-head { max-width: 680px; margin: 0 auto 44px; text-align: center; }
+    h2 { font-size: clamp(30px, 3.6vw, 42px); font-weight: 650; letter-spacing: -0.02em; line-height: 1.12; margin: 0 0 12px; }
+    .section-head p { color: var(--muted); font-size: 18px; margin: 0; }
+
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+    .card h3 { margin: 14px 0 6px; font-size: 19px; font-weight: 600; }
+    .card p { margin: 0; color: var(--muted); font-size: 15.5px; }
+    .icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--brand); }
+    .icon svg { width: 22px; height: 22px; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; counter-reset: step; }
+    @media (max-width: 800px) { .steps { grid-template-columns: minmax(0, 1fr); } }
+    .step { position: relative; padding: 24px 24px 24px 74px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+    .step::before {
+      counter-increment: step; content: counter(step);
+      position: absolute; left: 22px; top: 22px; width: 36px; height: 36px; border-radius: 50%;
+      display: grid; place-items: center; font: 700 17px/1 var(--display); background: var(--navy); color: var(--mint);
+    }
+    .step h3 { margin: 5px 0 6px; font-size: 19px; font-weight: 600; }
+    .step p { margin: 0; color: var(--muted); font-size: 15.5px; }
+
+    .showcase { display: grid; grid-template-columns: 1.3fr 1fr; gap: 48px; align-items: center; }
+    @media (max-width: 900px) { .showcase { grid-template-columns: minmax(0, 1fr); } }
+    .checks { list-style: none; padding: 0; margin: 20px 0 0; display: grid; gap: 12px; }
+    .checks li { display: flex; gap: 12px; color: var(--muted); }
+    .checks svg { width: 22px; height: 22px; flex: none; color: var(--accent-ink); margin-top: 2px; }
+    .checks strong { color: var(--text); font-weight: 600; }
+
+    /* Downloads */
+    .downloads { background: var(--surface-2); border-block: 1px solid var(--border); }
+    .dl { display: flex; flex-direction: column; }
+    .dl.recommended { border-color: var(--accent-ink); box-shadow: 0 0 0 1px var(--accent-ink); }
+    .dl-head { display: flex; align-items: center; gap: 12px; }
+    .dl-head svg { width: 30px; height: 30px; }
+    .dl-head h3 { margin: 0; }
+    .dl .req { font-size: 14px; color: var(--muted); margin: 10px 0 18px; }
+    .dl .btn { width: 100%; margin-top: 8px; }
+    .dl .alt { margin-top: 12px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+    .badge { margin-left: auto; font: 600 12px/1 var(--display); color: var(--navy-deep); background: var(--mint); padding: 5px 9px; border-radius: 999px; }
+    .release-info { text-align: center; color: var(--muted); font-size: 14.5px; margin-top: 26px; }
+
+    /* FAQ */
+    .faq { max-width: 780px; margin: 0 auto; display: grid; gap: 12px; }
+    details { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 4px 20px; }
+    summary { cursor: pointer; font-weight: 600; padding: 14px 0; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "+"; color: var(--accent-ink); font-size: 22px; line-height: 1; }
+    details[open] summary::after { content: "–"; }
+    details p, details ol { color: var(--muted); margin: 0 0 16px; }
+    code { background: var(--surface-2); padding: 2px 6px; border-radius: 6px; font-size: 0.92em; }
+
+    footer { border-top: 1px solid var(--border); padding: 32px 0; color: var(--muted); font-size: 14px; }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: center; }
+    footer a { color: var(--muted); }
+    .footer-brand { display: flex; align-items: center; gap: 10px; }
+    .footer-brand img { width: 24px; height: 24px; border-radius: 6px; }
+
+    .preview-note { display: none; margin-top: 14px; font-size: 13px; color: #f7c66b; }
+    .is-preview .preview-note { display: block; }
+  </style>
+</head>
+<body>
+  <!-- Replaced with "owner/repo" by .github/workflows/website.yml at deploy time. -->
+  <script>window.DIGICLEAN_REPO = "__GITHUB_REPOSITORY__";</script>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-windows" viewBox="0 0 24 24"><path fill="currentColor" d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></symbol>
+    <symbol id="i-apple" viewBox="0 0 24 24"><path fill="currentColor" d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.6.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.1 1-4 2.4-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.1-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8-.1 0-2.6-1-2.6-3.9ZM14 5.4c.7-.8 1.1-1.9 1-3-1 0-2.1.6-2.8 1.4-.6.7-1.2 1.8-1 2.9 1 .1 2.1-.5 2.8-1.3Z"/></symbol>
+    <symbol id="i-linux" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2c-2.2 0-3.5 1.9-3.5 4.4 0 1.3.3 2.1-.4 3.3-.8 1.4-2.4 3.4-2.6 5.6-.1 1 .1 1.8.6 2.4-.8.4-1.7.8-1.7 1.7 0 1.3 1.9 1.4 3 1.6.9.2 1.8 1 2.7 1 .8 0 1.4-.5 1.9-.9.6.1 1.3.1 2 0 .5.4 1.1.9 1.9.9.9 0 1.8-.8 2.7-1 1.1-.2 3-.3 3-1.6 0-.9-.9-1.3-1.7-1.7.5-.6.7-1.4.6-2.4-.2-2.2-1.8-4.2-2.6-5.6-.7-1.2-.4-2-.4-3.3C15.5 3.9 14.2 2 12 2Zm-1.6 4.1c.5 0 .8.6.8 1.2 0 .2 0 .4-.1.5l-.3-.1c-.2-.1-.4-.1-.6 0 0-.1-.1-.3-.1-.4 0-.7.1-1.2.3-1.2Zm3.2 0c.4 0 .7.5.7 1.1 0 .2 0 .3-.1.4-.3-.1-.6-.1-.8 0v-.3c0-.7.1-1.2.2-1.2Zm-1.6 2c.8 0 1.9.6 1.9 1s-1 1.2-1.9 1.2-1.9-.8-1.9-1.2 1.1-1 1.9-1Z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="m5 12.5 4.2 4.2L19 7"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z"/></symbol>
+    <symbol id="i-finger" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M7.5 5.2A7 7 0 0 1 19 10.5c0 3-.6 5.6-1.6 8M5 9a7 7 0 0 0-.2 1.5c0 2 .4 3.4.8 4.4M12 10.5c0 3.5-.7 6.7-2 9.5m5.5-9.5c0 2.6-.4 5-1.1 7.2M8.5 10.5a3.5 3.5 0 0 1 7 0"/></symbol>
+    <symbol id="i-folders" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M3 8h6l2 2h8v9H3zM7 8V5h5l2 2h7v9"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M13 3 5 13.5h6l-1 7.5 8-10.5h-6z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 3 5 6v5.5c0 4.3 3 8 7 9.5 4-1.5 7-5.2 7-9.5V6z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m9 12 2.2 2.2L15.5 10"/></symbol>
+    <symbol id="i-wand" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m4 20 11-11m-2-4 .7 1.6L15.3 7l-1.6.7L13 9.3l-.7-1.6L10.7 7l1.6-.7zM18 12l.5 1.2 1.2.5-1.2.5L18 15.4l-.5-1.2-1.2-.5 1.2-.5z"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2c.6 4.7 2.8 7.3 8 8-5.2.7-7.4 3.3-8 10-.6-6.7-2.8-9.3-8-10 5.2-.7 7.4-3.3 8-8Z"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+  </svg>
+
+  <div class="band">
+  <header>
+    <div class="wrap nav">
+      <a class="brand" href="#top"><img src="assets/icon-512.png" alt="">DigiClean</a>
+      <nav class="nav-links" aria-label="Main">
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+        <a href="#download">Download</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <a class="btn btn-mint btn-small" href="#download">Download</a>
+    </div>
+  </header>
+
+    <div class="wrap hero" id="top">
+      <div>
+        <span class="tagline"><svg><use href="#i-sparkle"/></svg>Duplicate file &amp; folder finder</span>
+        <h1>Find every duplicate.<br><em>Keep what matters.</em></h1>
+        <p class="lead">DigiClean compares files by their contents, not their names, so it finds copies even when they were renamed or moved. It shows you exactly where each copy lives and removes the extras without ever touching the last one.</p>
+        <div class="cta">
+          <a class="btn btn-mint btn-big" id="primary-download" href="#download">
+            <svg><use href="#i-download"/></svg>
+            <span><span id="primary-label">Download DigiClean</span><span class="sub" id="primary-sub">Windows · macOS · Linux</span></span>
+          </a>
+          <a class="btn btn-outline btn-big" href="#download">Other platforms</a>
+        </div>
+        <p class="meta">For Windows, macOS and Linux · <span id="version-line">Latest release</span> · runs entirely on your device</p>
+        <p class="preview-note">Preview: download links activate once the site is published from the GitHub repository.</p>
+      </div>
+      <div class="window" aria-label="DigiClean showing duplicate groups with copies marked Keep and Remove">
+        <div class="window-bar"><span></span><span></span><span></span></div>
+        <img src="assets/screenshot-desktop-dark.png" width="1280" height="800" alt="DigiClean results: duplicate groups with each copy's location and Keep / Remove labels">
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <div class="wrap trust">
+      <div><svg><use href="#i-lock"/></svg>No account, no upload</div>
+      <div><svg><use href="#i-shield"/></svg>One copy is always kept</div>
+      <div><svg><use href="#i-undo"/></svg>Removals can be undone</div>
+      <div><svg><use href="#i-bolt"/></svg>Rescans in seconds</div>
+    </div>
+
+    <section id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Accurate by design, careful by default</h2>
+          <p>Built for big photo libraries, messy Downloads folders and old backups.</p>
+        </div>
+        <div class="grid">
+          <div class="card"><div class="icon"><svg><use href="#i-finger"/></svg></div><h3>Matches by content</h3><p>Every candidate is fingerprinted with BLAKE3 or SHA-256. Renamed, moved and re-downloaded copies are all found. Optional byte-by-byte check for absolute certainty.</p></div>
+          <div class="card"><div class="icon"><svg><use href="#i-folders"/></svg></div><h3>Duplicate folders too</h3><p>Finds whole folders with identical structure and contents, such as a backup of a backup, plus empty folders left behind.</p></div>
+          <div class="card"><div class="icon"><svg><use href="#i-bolt"/></svg></div><h3>Fast on huge drives</h3><p>A parallel engine reads only what it must: files with unique sizes are skipped and fingerprints are remembered, so the next scan only reads what changed.</p></div>
+          <div class="card"><div class="icon"><svg><use href="#i-shield"/></svg></div><h3>Safe cleanup</h3><p>The last copy of anything is never removed, files are re-checked right before removal, and anything changed since the scan is skipped.</p></div>
+          <div class="card"><div class="icon"><svg><use href="#i-wand"/></svg></div><h3>Smart select</h3><p>Keep the newest, the oldest, or whatever is in your Pictures folder, across thousands of groups in one click. Fine-tune any group by hand.</p></div>
+          <div class="card"><div class="icon"><svg><use href="#i-undo"/></svg></div><h3>Undo and recovery</h3><p>Removed items go to the Recycle Bin / Trash or DigiClean's own recovery bin, ready to restore. You can also move duplicates or replace them with hard links.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="how" style="padding-top:0">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Three steps to a tidy disk</h2>
+        </div>
+        <div class="steps">
+          <div class="step"><h3>Pick folders</h3><p>Choose drives or folders. Add filters for file types, sizes or folders to skip.</p></div>
+          <div class="step"><h3>Scan</h3><p>DigiClean groups identical files and folders and shows how much space you can get back.</p></div>
+          <div class="step"><h3>Review &amp; clean</h3><p>Each copy is labelled <strong>Keep</strong> or <strong>Remove</strong>. Confirm, and get your space back.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section style="padding-top:0">
+      <div class="wrap showcase">
+        <div class="window">
+          <div class="window-bar"><span></span><span></span><span></span></div>
+          <img class="shot-dark" src="assets/screenshot-desktop.png" width="1280" height="800" loading="lazy" alt="DigiClean results in the light theme">
+          <img class="shot-light" src="assets/screenshot-desktop-dark.png" width="1280" height="800" loading="lazy" alt="DigiClean results in the dark theme">
+        </div>
+        <div>
+          <h2>See exactly what goes and what stays</h2>
+          <ul class="checks">
+            <li><svg><use href="#i-check"/></svg><span><strong>Only what differs.</strong> Copies are labelled by the folders that set them apart, like “Backup › iPhone 2024” vs “Pictures › Lisbon trip”.</span></li>
+            <li><svg><use href="#i-check"/></svg><span><strong>Compare before you decide.</strong> Preview the content, see every location with its dates, and verify the copies are identical.</span></li>
+            <li><svg><use href="#i-check"/></svg><span><strong>Light and dark.</strong> Follows your system theme and works from small windows to big screens.</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="download" class="downloads">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Download DigiClean</h2>
+          <p id="download-version">Pick your platform.</p>
+        </div>
+        <div class="grid">
+          <div class="card dl" data-os="windows">
+            <div class="dl-head"><svg><use href="#i-windows"/></svg><h3>Windows</h3><span class="badge" hidden>Your system</span></div>
+            <p class="req">Windows 10 (1809) or newer · 64-bit</p>
+            <a class="btn btn-primary" data-asset="DigiClean-Windows-Setup.exe"><svg><use href="#i-download"/></svg>Installer (.exe)</a>
+            <div class="alt"><a data-asset="DigiClean-Windows-Portable.zip">Portable .zip</a></div>
+          </div>
+          <div class="card dl" data-os="mac">
+            <div class="dl-head"><svg><use href="#i-apple"/></svg><h3>macOS</h3><span class="badge" hidden>Your system</span></div>
+            <p class="req">macOS 10.15 or newer · Apple silicon &amp; Intel</p>
+            <a class="btn btn-primary" data-asset="DigiClean-macOS.dmg"><svg><use href="#i-download"/></svg>Disk image (.dmg)</a>
+            <div class="alt"><span>Universal app</span></div>
+          </div>
+          <div class="card dl" data-os="linux">
+            <div class="dl-head"><svg><use href="#i-linux"/></svg><h3>Linux</h3><span class="badge" hidden>Your system</span></div>
+            <p class="req">64-bit (x86_64) · GTK 3 · glibc 2.35+</p>
+            <a class="btn btn-primary" data-asset="DigiClean-Linux-x86_64.AppImage"><svg><use href="#i-download"/></svg>AppImage</a>
+            <div class="alt"><a data-asset="digiclean_amd64.deb">Debian / Ubuntu (.deb)</a><a data-asset="DigiClean-Linux-x86_64.tar.gz">.tar.gz</a></div>
+          </div>
+        </div>
+        <p class="release-info"><a id="release-notes" href="#">Release notes</a> · <a data-asset="SHA256SUMS.txt">SHA-256 checksums</a> · <a id="all-releases" href="#">All releases</a></p>
+      </div>
+    </section>
+
+    <section id="faq">
+      <div class="wrap">
+        <div class="section-head"><h2>Questions</h2></div>
+        <div class="faq">
+          <details>
+            <summary>Is it safe to remove what DigiClean finds?</summary>
+            <p>Only files with byte-identical contents are grouped. In every group at least one copy is always kept, each file is checked again right before removal, and anything that changed since the scan is skipped. By default removed items go to the Recycle Bin / Trash, so you can restore them.</p>
+          </details>
+          <details>
+            <summary>Does DigiClean upload my files or collect data?</summary>
+            <p>No. Scanning and hashing happen entirely on your computer. DigiClean needs no account and sends no file names, hashes or usage data anywhere.</p>
+          </details>
+          <details>
+            <summary>Windows shows “Windows protected your PC”</summary>
+            <p>SmartScreen shows this for apps it hasn't seen often yet. Click <strong>More info</strong>, then <strong>Run anyway</strong>. You can check the download against the published SHA-256 checksums first.</p>
+          </details>
+          <details>
+            <summary>macOS says the app can't be opened</summary>
+            <p>If the build isn't notarized by Apple yet, open <strong>System Settings › Privacy &amp; Security</strong> and click <strong>Open Anyway</strong> next to DigiClean (on older macOS: right-click the app and choose <strong>Open</strong>). macOS may also ask before DigiClean reads folders like Desktop or Documents; allow it to scan them.</p>
+          </details>
+          <details>
+            <summary>How do I run the Linux AppImage?</summary>
+            <p>Make it executable and start it: <code>chmod +x DigiClean-Linux-x86_64.AppImage</code> then <code>./DigiClean-Linux-x86_64.AppImage</code>. On Debian or Ubuntu you can install the <code>.deb</code> instead: <code>sudo apt install ./digiclean_amd64.deb</code>.</p>
+          </details>
+          <details>
+            <summary>How does it decide two files are duplicates?</summary>
+            <p>Files are first grouped by size, then by a quick fingerprint of sampled blocks, then by a full BLAKE3 (default) or SHA-256 hash of the complete contents. You can add a byte-by-byte comparison. Hard links are recognised as one file, so they are never counted as wasted space.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span class="footer-brand"><img src="assets/icon-512.png" alt="">© <span id="year">2026</span> DigiClean · Duplicate file &amp; folder finder</span>
+      <span><a id="footer-repo" href="#">Source &amp; releases</a></span>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var repo = window.DIGICLEAN_REPO;
+      var published = repo && repo.indexOf("__") !== 0;
+      var base = published ? "https://github.com/" + repo : null;
+      if (!published) document.body.classList.add("is-preview");
+
+      // Every download link points at the newest release; file names are stable.
+      document.querySelectorAll("[data-asset]").forEach(function (a) {
+        a.href = published ? base + "/releases/latest/download/" + a.getAttribute("data-asset") : "#download";
+      });
+      ["release-notes", "all-releases", "footer-repo"].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.href = published ? base + (id === "footer-repo" ? "" : "/releases" + (id === "release-notes" ? "/latest" : "")) : "#download";
+      });
+      document.getElementById("year").textContent = new Date().getFullYear();
+
+      // Recommend the visitor's platform.
+      var ua = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || "";
+      ua = ua.toLowerCase();
+      var mobile = /android|iphone|ipad|ipod/.test((navigator.userAgent || "").toLowerCase());
+      var os = mobile ? null : /win/.test(ua) ? "windows" : /mac/.test(ua) ? "mac" : /linux|x11|cros/.test(ua) ? "linux" : null;
+      var labels = {
+        windows: ["Download for Windows", "Installer · 64-bit"],
+        mac: ["Download for macOS", "Universal · Apple silicon & Intel"],
+        linux: ["Download for Linux", "AppImage · x86_64"]
+      };
+      if (os) {
+        var card = document.querySelector('.dl[data-os="' + os + '"]');
+        card.classList.add("recommended");
+        card.querySelector(".badge").hidden = false;
+        document.getElementById("primary-label").textContent = labels[os][0];
+        document.getElementById("primary-sub").textContent = labels[os][1];
+        document.getElementById("primary-download").href = card.querySelector(".btn").href;
+      } else if (mobile) {
+        document.getElementById("primary-sub").textContent = "Available for Windows, macOS and Linux";
+      }
+
+      // Show the latest version number (best effort; links work without it).
+      if (published && window.fetch) {
+        fetch("https://api.github.com/repos/" + repo + "/releases/latest")
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (rel) {
+            if (!rel || !rel.tag_name) return;
+            var date = rel.published_at ? new Date(rel.published_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
+            document.getElementById("version-line").textContent = "Version " + rel.tag_name.replace(/^v/, "") + (date ? " · " + date : "");
+            document.getElementById("download-version").textContent = "Version " + rel.tag_name.replace(/^v/, "") + (date ? ", released " + date : "") + ".";
+          })
+          .catch(function () {});
+      }
+    })();
+  </script>
+</body>
+</html>

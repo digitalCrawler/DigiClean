@@ -1,0 +1,22 @@
+[package]
+name = "digiclean-cli"
+description = "Command-line front-end for the DigiClean duplicate engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "digiclean"
+path = "src/main.rs"
+
+# Background check run by the system scheduler (windowless on Windows).
+[[bin]]
+name = "digiclean-check"
+path = "src/check.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+digiclean_engine.workspace = true
+serde_json.workspace = true

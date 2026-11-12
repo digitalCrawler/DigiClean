@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+members = ["rust", "crates/engine", "crates/cli"]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.82"
+
+[workspace.dependencies]
+digiclean_engine = { path = "crates/engine" }
+anyhow = "1.0"
+blake3 = "1.8"
+clap = { version = "4.6", features = ["derive"] }
+globset = "0.4"
+hex = "0.4"
+log = "0.4"
+parking_lot = "0.12"
+rayon = "1.10"
+redb = "4.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+tempfile = "3"
+thiserror = "2.0"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "unwind"
+strip = "debuginfo"
+
+# Small debug artifacts: line tables for our crates, none for dependencies.
+[profile.dev]
+debug = "line-tables-only"
+[profile.dev.package."*"]
+debug = false
+
+# Hashing dominates runtime; keep it fast even in debug builds used during development.
+[profile.dev.package.blake3]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3

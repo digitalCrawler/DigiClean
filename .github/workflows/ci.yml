@@ -1,0 +1,34 @@
+# Tests and static analysis on every push and pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  FLUTTER_VERSION: "3.41.6"
+
+jobs:
+  engine:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: clippy }
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p digiclean_engine
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: "${{ env.FLUTTER_VERSION }}", channel: stable, cache: true }
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test

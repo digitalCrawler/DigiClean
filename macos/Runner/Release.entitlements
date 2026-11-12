@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- Distributed directly (Developer ID + notarization), not via the Mac App
+     Store: App Sandbox is off so the app can scan any folder the user
+     chooses and keep access across launches. macOS still asks the user
+     before the app reads protected places such as Desktop or Documents. -->
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+</dict>
+</plist>
