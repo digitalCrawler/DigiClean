@@ -8,7 +8,7 @@ push / pull request ──► CI            tests + static analysis (every chang
 push tag v1.2.0     ──► Release       builds Windows, macOS, Linux
                                       ─► tests the Windows installer
                                       ─► publishes a GitHub Release
-change website/     ──► Website       landing page on GitHub Pages
+push to main        ──► DigiDeploy    landing page (website/), redeployed
                         (or Vercel)   download buttons → latest release
 ```
 
@@ -16,7 +16,9 @@ change website/     ──► Website       landing page on GitHub Pages
 |---|---|---|---|
 | **CI** | `.github/workflows/ci.yml` | every push to `main`, every pull request | Rust engine tests + clippy on Windows, macOS, Linux; `flutter analyze` + `flutter test` |
 | **Release** | `.github/workflows/release.yml` | pushing a tag `v*` (or manual run → draft) | installers and packages for every desktop platform, attached to a GitHub Release |
-| **Website** | `.github/workflows/website.yml` | changes under `website/` on `main` | landing page on GitHub Pages |
+
+The landing page is not built by GitHub Actions: a web host (DigiDeploy or
+Vercel, see [1.4](#14-the-website)) builds it from `website/`.
 
 macOS and Linux apps cannot be built on Windows (and vice versa), which is
 why releases are built by CI on each platform's own runner.
@@ -95,20 +97,30 @@ Apple Developer Program.
 
 ### 1.4 The website
 
-Pick **one** host.
+The landing page is a static site in `website/`. Its build,
+`website/vercel-build.sh`, copies it to `website/public/` and fills in the
+GitHub repository the download buttons point at. Pick **one** host.
 
-**GitHub Pages** (default): Settings → Pages → Source: **GitHub Actions**,
-then Actions → **Website** → **Run workflow** once. It redeploys whenever
-`website/` changes on `main`, at `https://<owner>.github.io/<repo>/`
-(a custom domain can be set on the same page).
+**DigiDeploy** (current host): create a project from the GitHub repository
+with these settings:
 
-**Vercel** (instead of Pages): import the repository in Vercel and set
-**Root Directory** to `website`; everything else comes from
-`website/vercel.json`. Download buttons point at the connected GitHub
-repository automatically (set `DIGICLEAN_REPO=owner/repo` when deploying
-with the Vercel CLI). Add a domain under Domains; set `SITE_URL` if link
-previews should use a different one. Then delete
-`.github/workflows/website.yml` so the site is not published twice.
+| Setting | Value |
+|---|---|
+| Runtime mode | **Static** |
+| Build command | `cd website && sh vercel-build.sh` |
+| Output directory | `website/public` |
+| Start command | *(empty)* |
+| Environment | `DIGICLEAN_REPO` = `owner/repo` (a pasted `https://github.com/owner/repo` works too); optional `SITE_URL` = `https://your-domain` for link previews |
+
+If the project was detected as another type (Rust, Flutter), the Runtime mode
+setting is what matters: with **Static** nothing is started; the files are
+served. Turn on *Deploy automatically on push* to redeploy after each push.
+
+**Vercel**: import the repository in Vercel and set **Root Directory** to
+`website`; everything else comes from `website/vercel.json`. Download
+buttons point at the connected GitHub repository automatically (set
+`DIGICLEAN_REPO=owner/repo` when deploying with the Vercel CLI). Add a domain
+under Domains; set `SITE_URL` if link previews should use a different one.
 
 Either way the website needs no redeploy per release: links point at the
 latest release and the version number is read from GitHub in the browser.
@@ -120,7 +132,7 @@ latest release and the version number is read from GitHub in the browser.
 1. Work on a branch and open a pull request.
 2. **CI** runs the engine tests on all three operating systems and the
    Flutter analyzer and tests. Merge when it is green.
-3. Changes to `website/` deploy the landing page after merging.
+3. Changes to `website/` reach the landing page on the next website deploy.
 
 Run the same checks locally before pushing:
 
@@ -272,7 +284,9 @@ the site is deployed from the repository.
 | macOS: "DigiClean can't be opened" | Unsigned build: right-click → Open, or System Settings › Privacy & Security → Open Anyway. Add the Apple secrets (1.3). |
 | Release job fails at **Test the installer** | Read the step log: each failing check is listed (e.g. a missing shortcut). `setup.log` is in the runner's `%TEMP%`. Reproduce with `test-installer.ps1` locally. |
 | `Inno Setup (ISCC) not found` locally | `winget install JRSoftware.InnoSetup`; the release workflow installs it itself. |
-| Website download buttons say "preview" | The site was not built with the repository name: deploy through the Website workflow, or set `DIGICLEAN_REPO` on Vercel. |
+| Website download buttons say "preview" | The site was built without the repository name: set `DIGICLEAN_REPO` (`owner/repo`) on the web host and redeploy. |
+| Download link looks like `github.com/https://github.com/…` | Built with an old `vercel-build.sh`; current versions accept a full URL in `DIGICLEAN_REPO`. Or set it to `owner/repo`. |
+| A CI job is "cancelled" in seconds with "configuration … is not supported" | GitHub retired that runner image. Change `runs-on` to a current label from [actions/runner-images](https://github.com/actions/runner-images#available-images). |
 | Download links give 404 | No release published yet (or a file was renamed). Publish a release (section 3). |
 | Users see an old version | Browsers cache the page for a few minutes; the links always resolve to the latest release on GitHub's side. |
 

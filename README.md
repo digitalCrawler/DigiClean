@@ -120,7 +120,7 @@ The CLI only reports; it never modifies files.
 
 Windows, macOS and Linux packages (installer, DMG, AppImage, .deb) are built
 by GitHub Actions when a `v*` tag is pushed, and the landing page in
-`website/` is deployed to GitHub Pages. See [DEPLOYMENT.md](DEPLOYMENT.md) for the CI/CD pipeline, the Windows installer and how to publish a release.
+`website/` is a static site hosted on DigiDeploy (or Vercel). See [DEPLOYMENT.md](DEPLOYMENT.md) for the CI/CD pipeline, the Windows installer and how to publish a release.
 
 ## Release checklist
 

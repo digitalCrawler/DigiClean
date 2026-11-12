@@ -73,7 +73,7 @@ jobs:
 
   macos:
     needs: version
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       # Optional signing + notarization; secrets cannot be tested directly in `if:`.
       MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}

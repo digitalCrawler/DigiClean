@@ -17,6 +17,13 @@ repo="${DIGICLEAN_REPO:-}"
 if [ -z "$repo" ] && [ "${VERCEL_GIT_PROVIDER:-}" = "github" ]; then
   repo="${VERCEL_GIT_REPO_OWNER}/${VERCEL_GIT_REPO_SLUG}"
 fi
+# Accept a pasted repository URL too: https://github.com/owner/name(.git)(/)
+repo="${repo#https://}"; repo="${repo#http://}"; repo="${repo#www.}"
+repo="${repo#github.com/}"; repo="${repo#git@github.com:}"
+repo="${repo%/}"; repo="${repo%.git}"
+case "$repo" in
+  */*/* | *" "* | *:*) echo "error: DIGICLEAN_REPO must look like owner/name, got '$repo'" >&2; exit 1 ;;
+esac
 if [ -n "$repo" ]; then
   sed -i "s|__GITHUB_REPOSITORY__|${repo}|g" public/index.html
   echo "Download links point at github.com/${repo}/releases"
