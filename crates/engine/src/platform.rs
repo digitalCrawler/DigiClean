@@ -9,18 +9,20 @@ use std::path::{Path, PathBuf};
 /// `(device, inode)` on Unix, `(volume serial, file index)` on Windows.
 pub type FileIdentity = (u64, u64);
 
-pub fn is_hidden(name: &OsStr, _meta: Option<&Metadata>) -> bool {
-    if name.to_string_lossy().starts_with('.') {
-        return true;
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
-        if let Some(meta) = _meta {
-            return meta.file_attributes() & FILE_ATTRIBUTE_HIDDEN != 0;
-        }
-    }
+pub fn is_hidden(name: &OsStr, meta: Option<&Metadata>) -> bool {
+    name.to_string_lossy().starts_with('.') || has_hidden_attribute(meta)
+}
+
+/// The Windows "hidden" attribute; other systems hide by name only.
+#[cfg(windows)]
+fn has_hidden_attribute(meta: Option<&Metadata>) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
+    meta.is_some_and(|m| m.file_attributes() & FILE_ATTRIBUTE_HIDDEN != 0)
+}
+
+#[cfg(not(windows))]
+fn has_hidden_attribute(_meta: Option<&Metadata>) -> bool {
     false
 }
 
