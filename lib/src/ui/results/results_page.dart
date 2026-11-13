@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/file_kind.dart';
@@ -18,11 +19,11 @@ import '../../state/settings.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'action_flow.dart';
-import 'compare_page.dart';
 import 'export_report.dart';
-import 'group_cards.dart';
 import 'ignore_actions.dart';
 import 'photo_cards.dart';
+import 'review_detail.dart';
+import 'review_rows.dart';
 import 'smart_select_sheet.dart';
 
 /// Copy-on-write clones are offered unless a scanned drive is known not to
@@ -32,18 +33,6 @@ final _clonesProvider = Provider<bool>((ref) {
   if (Platform.isAndroid || roots.isEmpty) return false;
   return roots.every((r) => cloneSupport(path: r) != false);
 });
-
-const _kinds = [
-  ResultKind.files,
-  ResultKind.folders,
-  // The media tab shows similar photos, photo issues or similar audio and
-  // video (see _mediaView).
-  ResultKind.similarPhotos,
-  ResultKind.largeFiles,
-  ResultKind.oldFiles,
-  ResultKind.junk,
-  ResultKind.emptyFolders,
-];
 
 /// Ages offered on the old-files list.
 const _oldAges = [
@@ -71,7 +60,7 @@ const installerExtensions = [
   'iso',
 ];
 
-/// Size thresholds offered on the large-files tab.
+/// Size thresholds offered on the large-files list.
 const _largeThresholds = [
   (label: 'All', bytes: 0),
   (label: '≥ 10 MB', bytes: 10 << 20),
@@ -79,6 +68,27 @@ const _largeThresholds = [
   (label: '≥ 1 GB', bytes: 1 << 30),
 ];
 
+/// Kinds that exist only after the media analysis.
+const _analysedKinds = {ResultKind.similarPhotos, ResultKind.photoIssues, ResultKind.similarMedia};
+
+/// One entry of the sections list.
+class _Section {
+  const _Section(this.kind, this.label, this.icon, this.description, {required this.group, this.count, this.bytes});
+
+  final ResultKind kind;
+  final String label;
+  final IconData icon;
+  final String description;
+  final String group;
+
+  /// `null` while unknown (old files loading, media not analysed).
+  final int? count;
+  final int? bytes;
+}
+
+/// Results as a review workspace: sections on the left, the items of the
+/// chosen section in the middle and a large preview with the decisions on
+/// the right. Phones show the list and open the preview full screen.
 class ResultsPage extends ConsumerStatefulWidget {
   const ResultsPage({super.key, required this.onStartScan});
 
@@ -88,10 +98,14 @@ class ResultsPage extends ConsumerStatefulWidget {
   ConsumerState<ResultsPage> createState() => _ResultsPageState();
 }
 
-class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProviderStateMixin {
-  late final TabController _tabs;
+class _ResultsPageState extends ConsumerState<ResultsPage> {
   final _searchController = TextEditingController();
+  final _listFocus = FocusNode(debugLabel: 'review list');
   Timer? _debounce;
+
+  ResultKind _section = ResultKind.files;
+  final Map<ResultKind, int> _focus = {};
+  final Map<ResultKind, ScrollController> _scroll = {};
 
   SortBy _sort = SortBy.wasted;
   bool _descending = true;
@@ -113,38 +127,20 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
   _OldScope _oldScope = _OldScope.everywhere;
   PagedList<SimilarGroupDto>? _similar;
   PagedList<PhotoDto>? _photoList;
-  _MediaView _mediaView = _MediaView.photos;
   PagedList<MediaGroupDto>? _mediaGroups;
   PhotoIssueKind? _photoIssueKind;
   List<CategoryStat> _categories = const [];
-  int? _focusedFile;
-  int? _focusedFolder;
 
-  ResultKind get _kind {
-    final kind = _kinds[_tabs.index];
-    if (kind != ResultKind.similarPhotos) return kind;
-    return switch (_mediaView) {
-      _MediaView.photos => ResultKind.similarPhotos,
-      _MediaView.issues => ResultKind.photoIssues,
-      _MediaView.media => ResultKind.similarMedia,
-    };
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _tabs = TabController(length: _kinds.length, vsync: this)..addListener(_onTab);
-  }
-
-  void _onTab() {
-    if (!_tabs.indexIsChanging) setState(() {});
-  }
+  ResultKind get _kind => _section;
 
   @override
   void dispose() {
-    _tabs.dispose();
     _searchController.dispose();
+    _listFocus.dispose();
     _debounce?.cancel();
+    for (final c in _scroll.values) {
+      c.dispose();
+    }
     _disposeLists();
     super.dispose();
   }
@@ -156,17 +152,16 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
     _large?.dispose();
     _junk?.dispose();
     _old?.dispose();
-    _old = null;
     _similar?.dispose();
     _photoList?.dispose();
     _mediaGroups?.dispose();
-    _mediaGroups = null;
-    _similar = null;
-    _photoList = null;
     _files = _folders = null;
     _empty = null;
-    _large = null;
+    _large = _old = null;
     _junk = null;
+    _similar = null;
+    _photoList = null;
+    _mediaGroups = null;
   }
 
   GroupQuery _query(int offset, int limit, {bool category = true}) => GroupQuery(
@@ -178,13 +173,16 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
     search: _search.isEmpty ? null : _search,
   );
 
+  /// Lists of single files are sorted by size where groups use "space to free".
+  SortBy get _fileSort => _sort == SortBy.wasted || _sort == SortBy.count ? SortBy.size : _sort;
+
   /// (Re)creates paged lists for a new result set and reloads them when
   /// the results change.
   void _bind(ScanResults results, int generation) {
     if (!identical(results, _bound)) {
       _disposeLists();
       _bound = results;
-      _focusedFile = _focusedFolder = null;
+      _focus.clear();
       _files = PagedList((o, l) async {
         final page = await results.fileGroups(query: _query(o, l));
         return (page.total, page.groups);
@@ -194,15 +192,13 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
         return (page.total, page.groups);
       });
       _large = PagedList((o, l) async {
-        final q = _query(o, l, category: false);
         final page = await results.largeFiles(
           query: GroupQuery(
-            offset: q.offset,
-            limit: q.limit,
-            // "Reclaimable" means "size" for single files.
-            sort: q.sort == SortBy.wasted || q.sort == SortBy.count ? SortBy.size : q.sort,
-            descending: q.descending,
-            search: q.search,
+            offset: o,
+            limit: l,
+            sort: _fileSort,
+            descending: _descending,
+            search: _search.isEmpty ? null : _search,
             minSize: _largeMin > 0 ? _largeMin : null,
           ),
         );
@@ -217,29 +213,27 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
         return (page.total, page.groups);
       }, pageSize: 30);
       _photoList = PagedList((o, l) async {
-        final q = _query(o, l, category: false);
         final page = await results.photoIssues(
           query: GroupQuery(
-            offset: q.offset,
-            limit: q.limit,
-            sort: q.sort == SortBy.wasted || q.sort == SortBy.count ? SortBy.size : q.sort,
-            descending: q.descending,
-            search: q.search,
+            offset: o,
+            limit: l,
+            sort: _fileSort,
+            descending: _descending,
+            search: _search.isEmpty ? null : _search,
             photoIssue: _photoIssueKind,
           ),
         );
         return (page.total, page.photos);
       }, pageSize: 60);
       _old = PagedList((o, l) async {
-        final q = _query(o, l, category: false);
         final paths = ref.read(appPathsProvider);
         final page = await results.oldFiles(
           query: GroupQuery(
-            offset: q.offset,
-            limit: q.limit,
-            sort: q.sort == SortBy.wasted || q.sort == SortBy.count ? SortBy.size : q.sort,
-            descending: q.descending,
-            search: q.search,
+            offset: o,
+            limit: l,
+            sort: _fileSort,
+            descending: _descending,
+            search: _search.isEmpty ? null : _search,
             modifiedBeforeMs: DateTime.now().subtract(Duration(days: _oldDays)).millisecondsSinceEpoch,
             within: _oldScope == _OldScope.downloads ? paths.downloadDirs : null,
             extensions: _oldScope == _OldScope.installers ? installerExtensions : null,
@@ -248,14 +242,13 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
         return (page.total, page.files);
       }, pageSize: 60);
       _junk = PagedList((o, l) async {
-        final q = _query(o, l, category: false);
         final page = await results.junk(
           query: GroupQuery(
-            offset: q.offset,
-            limit: q.limit,
-            sort: q.sort == SortBy.wasted || q.sort == SortBy.count ? SortBy.size : q.sort,
-            descending: q.descending,
-            search: q.search,
+            offset: o,
+            limit: l,
+            sort: _fileSort,
+            descending: _descending,
+            search: _search.isEmpty ? null : _search,
             junkKind: _junkKind,
           ),
         );
@@ -291,10 +284,31 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
     }
   }
 
+  /// A filter, sort or search changed: reload and start from the top.
   void _setQuery(VoidCallback change) {
-    setState(change);
+    setState(() {
+      change();
+      _focus.clear();
+    });
+    for (final c in _scroll.values) {
+      if (c.hasClients) c.jumpTo(0);
+    }
     _reload();
   }
+
+  PagedList<Object?>? _listFor(ResultKind kind) => switch (kind) {
+    ResultKind.files => _files,
+    ResultKind.folders => _folders,
+    ResultKind.similarPhotos => _similar,
+    ResultKind.photoIssues => _photoList,
+    ResultKind.similarMedia => _mediaGroups,
+    ResultKind.largeFiles => _large,
+    ResultKind.oldFiles => _old,
+    ResultKind.junk => _junk,
+    ResultKind.emptyFolders => _empty,
+  };
+
+  ScrollController _scrollFor(ResultKind kind) => _scroll.putIfAbsent(kind, ScrollController.new);
 
   // ── Selection ──────────────────────────────────────────────────────
 
@@ -319,6 +333,91 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
     final g = r.folderGroup(index: index);
     if (g != null) _folders?.replaceWhere((x) => x.index == index, (_) => g);
   }
+
+  void _refreshSimilar(ScanResults r, int index) {
+    final g = r.similarGroup(index: index);
+    if (g != null) _similar?.replaceWhere((x) => x.index == index, (_) => g);
+  }
+
+  void _refreshMedia(ScanResults r, int index) {
+    final g = r.mediaGroup(index: index);
+    if (g != null) _mediaGroups?.replaceWhere((x) => x.index == index, (_) => g);
+  }
+
+  static FileEntryDto _fileWith(FileEntryDto x, bool sel) => FileEntryDto(
+    id: x.id,
+    path: x.path,
+    name: x.name,
+    parent: x.parent,
+    size: x.size,
+    modifiedMs: x.modifiedMs,
+    createdMs: x.createdMs,
+    hidden: x.hidden,
+    selected: sel,
+  );
+
+  void _selectLarge(int id, bool sel) => _apply(
+    (r) => r.setLargeFileSelected(fileId: id, selected: sel),
+    refresh: (_) => _large?.replaceWhere((x) => x.id == id, (x) => _fileWith(x, sel)),
+  );
+
+  void _selectOld(int id, bool sel) => _apply(
+    (r) => r.setOldFileSelected(fileId: id, selected: sel),
+    refresh: (_) => _old?.replaceWhere((x) => x.id == id, (x) => _fileWith(x, sel)),
+  );
+
+  void _selectJunk(int id, bool sel) => _apply(
+    (r) => r.setJunkSelected(junkId: id, selected: sel),
+    refresh: (_) => _junk?.replaceWhere(
+      (x) => x.id == id,
+      (x) => JunkEntryDto(
+        id: x.id,
+        path: x.path,
+        name: x.name,
+        parent: x.parent,
+        size: x.size,
+        modifiedMs: x.modifiedMs,
+        kind: x.kind,
+        safe: x.safe,
+        selected: sel,
+      ),
+    ),
+  );
+
+  void _selectPhoto(int id, bool sel) => _apply(
+    (r) => r.setPhotoSelected(fileId: id, selected: sel),
+    refresh: (_) => _photoList?.replaceWhere(
+      (x) => x.id == id,
+      (x) => PhotoDto(
+        id: x.id,
+        path: x.path,
+        name: x.name,
+        parent: x.parent,
+        size: x.size,
+        modifiedMs: x.modifiedMs,
+        width: x.width,
+        height: x.height,
+        issues: x.issues,
+        best: x.best,
+        selected: sel,
+      ),
+    ),
+  );
+
+  void _selectEmpty(int id, bool sel) => _apply(
+    (r) => r.setFolderSelected(folderId: id, selected: sel),
+    refresh: (_) => _empty?.replaceWhere(
+      (x) => x.id == id,
+      (x) => FolderEntryDto(
+        id: x.id,
+        path: x.path,
+        name: x.name,
+        parent: x.parent,
+        modifiedMs: x.modifiedMs,
+        selected: sel,
+      ),
+    ),
+  );
 
   Future<void> _smartSelect() async {
     final results = _bound;
@@ -371,26 +470,195 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
     ref.read(resultsProvider.notifier).selectionChanged(summary, reloadLists: true);
   }
 
-  Future<void> _ignoreFolder(String folder) async {
-    await ignoreFolder(context, ref, folder);
-    // The open comparison may show copies that are now hidden.
-    if (mounted) setState(() => _focusedFile = _focusedFolder = null);
+  Future<void> _ignoreFolder(String folder) => ignoreFolder(context, ref, folder);
+
+  // ── Focus and keyboard ─────────────────────────────────────────────
+
+  int _focusOf(ResultKind kind) => _focus[kind] ?? 0;
+
+  void _setFocus(int pos, {bool scroll = true}) {
+    final total = _listFor(_section)?.total ?? 0;
+    if (total == 0) return;
+    final p = pos.clamp(0, total - 1);
+    setState(() => _focus[_section] = p);
+    if (scroll) _ensureVisible(p);
   }
 
-  void _openFileGroup(int index) {
-    if (context.isExpanded) {
-      setState(() => _focusedFile = index);
-    } else {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => FileCompareView(groupIndex: index)));
+  void _ensureVisible(int pos) {
+    final c = _scrollFor(_section);
+    if (!c.hasClients) return;
+    final top = pos * reviewRowExtent;
+    final view = c.position.viewportDimension;
+    double? to;
+    if (top < c.offset) {
+      to = top;
+    } else if (top + reviewRowExtent > c.offset + view) {
+      to = top + reviewRowExtent - view;
+    }
+    if (to != null) {
+      c.animateTo(
+        to.clamp(0, c.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+      );
     }
   }
 
-  void _openFolderGroup(int index) {
-    if (context.isExpanded) {
-      setState(() => _focusedFolder = index);
-    } else {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => FolderCompareView(groupIndex: index)));
+  KeyEventResult _onKey(FocusNode node, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
+    final pos = _focusOf(_section);
+    switch (e.logicalKey) {
+      case LogicalKeyboardKey.arrowDown || LogicalKeyboardKey.keyJ:
+        _setFocus(pos + 1);
+      case LogicalKeyboardKey.arrowUp || LogicalKeyboardKey.keyK:
+        _setFocus(pos - 1);
+      case LogicalKeyboardKey.pageDown:
+        _setFocus(pos + 8);
+      case LogicalKeyboardKey.pageUp:
+        _setFocus(pos - 8);
+      case LogicalKeyboardKey.home:
+        _setFocus(0);
+      case LogicalKeyboardKey.end:
+        _setFocus(1 << 30);
+      case LogicalKeyboardKey.space:
+        _toggleFocused();
+      default:
+        return KeyEventResult.ignored;
     }
+    return KeyEventResult.handled;
+  }
+
+  /// Space marks or unmarks a single item (large files, junk…).
+  void _toggleFocused() {
+    final item = _listFor(_section)?.itemAt(_focusOf(_section));
+    switch (item) {
+      case FileEntryDto f when _section == ResultKind.largeFiles:
+        _selectLarge(f.id, !f.selected);
+      case FileEntryDto f when _section == ResultKind.oldFiles:
+        _selectOld(f.id, !f.selected);
+      case JunkEntryDto j:
+        _selectJunk(j.id, !j.selected);
+      case PhotoDto p:
+        _selectPhoto(p.id, !p.selected);
+      case FolderEntryDto f:
+        _selectEmpty(f.id, !f.selected);
+      default:
+    }
+  }
+
+  void _openRow(int pos) {
+    _listFocus.requestFocus();
+    if (context.isCompact) {
+      setState(() => _focus[_section] = pos);
+      final kind = _section;
+      final section = _sectionsFor(ref.read(resultsProvider)).firstWhere((s) => s.kind == kind);
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => _DetailPage(
+            title: section.label,
+            total: () => _listFor(kind)?.total ?? 0,
+            initial: pos,
+            listenable: _listFor(kind)!,
+            builder: (p) => _detailAt(kind, p),
+            onPosition: (p) => _focus[kind] = p,
+          ),
+        ),
+      );
+    } else {
+      _setFocus(pos, scroll: false);
+    }
+  }
+
+  // ── Sections ───────────────────────────────────────────────────────
+
+  List<_Section> _sectionsFor(ResultsState state) {
+    final s = state.summary;
+    final stats = state.stats!;
+    final analysed = s?.photosAnalyzed ?? false;
+    return [
+      _Section(
+        ResultKind.files,
+        'Duplicate files',
+        Icons.file_copy_outlined,
+        'Identical contents under any name. Keep one copy of each.',
+        group: 'Duplicates',
+        count: s?.activeFileGroups ?? stats.duplicateGroups,
+        bytes: s?.fileWasted ?? stats.wastedBytes,
+      ),
+      _Section(
+        ResultKind.folders,
+        'Duplicate folders',
+        Icons.folder_copy_outlined,
+        'Whole folders that match file for file.',
+        group: 'Duplicates',
+        count: s?.activeFolderGroups ?? stats.folderGroups,
+        bytes: s?.folderWasted ?? stats.folderWastedBytes,
+      ),
+      _Section(
+        ResultKind.similarPhotos,
+        'Similar photos',
+        Icons.photo_library_outlined,
+        'Photos that look alike: resized, re-saved or burst shots. The best one is marked.',
+        group: 'Look-alikes',
+        count: analysed ? s!.similarGroups : null,
+        bytes: analysed ? s!.similarReclaimable : null,
+      ),
+      _Section(
+        ResultKind.photoIssues,
+        'Photos to review',
+        Icons.hide_image_outlined,
+        'Blurry and dark photos, and screenshots you may not need.',
+        group: 'Look-alikes',
+        count: analysed ? s!.remainingPhotoIssues : null,
+      ),
+      _Section(
+        ResultKind.similarMedia,
+        'Music & video',
+        Icons.library_music_outlined,
+        'Songs and videos that sound the same, in another format or quality.',
+        group: 'Look-alikes',
+        count: analysed ? s!.mediaGroups : null,
+        bytes: analysed ? s!.mediaReclaimable : null,
+      ),
+      _Section(
+        ResultKind.largeFiles,
+        'Large files',
+        Icons.photo_size_select_large,
+        'Your biggest files. Not duplicates: remove only what you no longer need.',
+        group: 'Clean up',
+        count: s?.remainingLargeFiles ?? stats.largeFiles,
+      ),
+      _Section(
+        ResultKind.oldFiles,
+        'Old files',
+        Icons.history_toggle_off,
+        'Files nobody has changed for a long time.',
+        group: 'Clean up',
+        count: _old?.total,
+      ),
+      _Section(
+        ResultKind.junk,
+        'Junk',
+        Icons.cleaning_services_outlined,
+        'Caches, unfinished downloads and temporary files.',
+        group: 'Clean up',
+        count: s?.remainingJunk ?? stats.junkItems,
+        bytes: s?.remainingJunkBytes ?? stats.junkBytes,
+      ),
+      _Section(
+        ResultKind.emptyFolders,
+        'Empty folders',
+        Icons.folder_off_outlined,
+        'Folders with nothing inside.',
+        group: 'Clean up',
+        count: s?.remainingEmptyFolders ?? stats.emptyFolders,
+      ),
+    ];
+  }
+
+  void _selectSection(ResultKind kind) {
+    if (kind == _section) return;
+    setState(() => _section = kind);
   }
 
   // ── Build ──────────────────────────────────────────────────────────
@@ -449,26 +717,70 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
     if (ref.watch(resultsTabRequestProvider) case final kind?) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        final view = switch (kind) {
-          ResultKind.similarPhotos => _MediaView.photos,
-          ResultKind.photoIssues => _MediaView.issues,
-          ResultKind.similarMedia => _MediaView.media,
-          _ => null,
-        };
-        if (view != null) setState(() => _mediaView = view);
-        final i = _kinds.indexOf(view != null ? ResultKind.similarPhotos : kind);
-        if (i >= 0 && i != _tabs.index) _tabs.animateTo(i);
+        _selectSection(kind);
         ref.read(resultsTabRequestProvider.notifier).state = null;
       });
     }
 
-    final counts = [
-      summary?.activeFileGroups ?? stats.duplicateGroups,
-      summary?.activeFolderGroups ?? stats.folderGroups,
-      summary?.remainingLargeFiles ?? stats.largeFiles,
-      summary?.remainingJunk ?? stats.junkItems,
-      summary?.remainingEmptyFolders ?? stats.emptyFolders,
-    ];
+    final needsAnalysis = _analysedKinds.contains(_kind) && !(summary?.photosAnalyzed ?? false);
+    final sections = ListenableBuilder(
+      listenable: _old!,
+      builder: (context, _) {
+        final all = _sectionsFor(state);
+        return context.isExpanded
+            ? _SectionsPanel(
+                sections: all,
+                selected: _section,
+                onSelect: _selectSection,
+                header: _Summary(state: state, large: true),
+              )
+            : _SectionChips(sections: all, selected: _section, onSelect: _selectSection);
+      },
+    );
+    final current = _sectionsFor(state).firstWhere((s) => s.kind == _kind);
+    final list = _ListPane(
+      section: current,
+      filters: _filtersFor(_kind),
+      showKeys: !context.isCompact,
+      child: needsAnalysis ? const PhotoAnalyzeCard() : _listBody(_kind, state),
+    );
+    final showDetail = !context.isCompact && !needsAnalysis;
+
+    final Widget body;
+    if (context.isExpanded) {
+      body = Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(width: 248, child: sections),
+          VerticalDivider(width: Tokens.rule, thickness: Tokens.rule, color: context.ds.ink),
+          Expanded(flex: 5, child: list),
+          if (showDetail) ...[
+            VerticalDivider(width: 1, thickness: 1, color: context.ds.hairline),
+            Expanded(flex: 6, child: _detailPane(_kind)),
+          ],
+        ],
+      );
+    } else {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Summary(state: state, large: false),
+          sections,
+          Expanded(
+            child: showDetail
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(flex: 5, child: list),
+                      VerticalDivider(width: 1, thickness: 1, color: context.ds.hairline),
+                      Expanded(flex: 6, child: _detailPane(_kind)),
+                    ],
+                  )
+                : list,
+          ),
+        ],
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -476,11 +788,7 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
             ? TextField(
                 controller: _searchController,
                 autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: 'Search by name or path',
-                  filled: false,
-                  border: InputBorder.none,
-                ),
+                decoration: const InputDecoration(hintText: 'Search by name or path', border: InputBorder.none),
                 onChanged: (v) {
                   _debounce?.cancel();
                   _debounce = Timer(const Duration(milliseconds: 300), () => _setQuery(() => _search = v.trim()));
@@ -529,311 +837,9 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
           const SizedBox(width: 4),
         ],
       ),
-      body: Column(
-        children: [
-          _SummaryHeader(
-            stats: stats,
-            summary: summary,
-            reopenedFrom: state.restored ? state.finishedAt : null,
-            categories: _categories,
-            selected: _category,
-            showCategories: _kind == ResultKind.files,
-            onCategory: (c) => _setQuery(() => _category = c),
-          ),
-          TabBar(
-            controller: _tabs,
-            // Five tabs do not fit a phone; let them scroll there.
-            isScrollable: context.isCompact,
-            tabAlignment: context.isCompact ? TabAlignment.start : null,
-            tabs: [
-              Tab(text: 'Files (${formatCount(counts[0])})'),
-              Tab(text: 'Folders (${formatCount(counts[1])})'),
-              Tab(
-                text: summary?.photosAnalyzed ?? false
-                    ? 'Media (${formatCount(summary!.similarGroups + summary.remainingPhotoIssues + summary.mediaGroups)})'
-                    : 'Media',
-              ),
-              Tab(text: '${context.isCompact ? 'Large' : 'Large files'} (${formatCount(counts[2])})'),
-              Tab(
-                child: ListenableBuilder(
-                  listenable: _old!,
-                  builder: (context, _) {
-                    final n = _old!.total;
-                    return Text('${context.isCompact ? 'Old' : 'Old files'}${n == null ? '' : ' (${formatCount(n)})'}');
-                  },
-                ),
-              ),
-              Tab(text: 'Junk (${formatCount(counts[3])})'),
-              Tab(text: '${context.isCompact ? 'Empty' : 'Empty folders'} (${formatCount(counts[4])})'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabs,
-              children: [
-                _withDetail(
-                  list: _GroupList<FileGroupDto>(
-                    list: _files!,
-                    emptyMessage: _category != null || _search.isNotEmpty
-                        ? 'No groups match the filter'
-                        : 'No duplicate files left',
-                    itemBuilder: (g) => FileGroupCard(
-                      group: g,
-                      focused: g.index == _focusedFile,
-                      onSelect: (id, sel) => _apply(
-                        (r) => r.setFileSelected(fileId: id, selected: sel),
-                        refresh: (r) => _refreshFileGroup(r, g.index),
-                      ),
-                      onKeepOnly: (id) => _apply(
-                        (r) => r.keepOnly(kind: ResultKind.files, groupIndex: g.index, keepId: id),
-                        refresh: (r) => _refreshFileGroup(r, g.index),
-                      ),
-                      onOpenGroup: () => _openFileGroup(g.index),
-                      onIgnoreGroup: () {
-                        if (_focusedFile == g.index) setState(() => _focusedFile = null);
-                        ignoreGroup(context, ref, ResultKind.files, g.index);
-                      },
-                      onIgnoreFolder: (folder) => _ignoreFolder(folder),
-                    ),
-                  ),
-                  detail: _focusedFile == null
-                      ? null
-                      : FileCompareView(key: ValueKey(_focusedFile), groupIndex: _focusedFile!, embedded: true),
-                  onClose: () => setState(() => _focusedFile = null),
-                ),
-                _withDetail(
-                  list: _GroupList<FolderGroupDto>(
-                    list: _folders!,
-                    emptyMessage: 'No duplicate folders',
-                    itemBuilder: (g) => FolderGroupCard(
-                      group: g,
-                      focused: g.index == _focusedFolder,
-                      onSelect: (id, sel) => _apply(
-                        (r) => r.setFolderSelected(folderId: id, selected: sel),
-                        refresh: (r) => _refreshFolderGroup(r, g.index),
-                      ),
-                      onKeepOnly: (id) => _apply(
-                        (r) => r.keepOnly(kind: ResultKind.folders, groupIndex: g.index, keepId: id),
-                        refresh: (r) => _refreshFolderGroup(r, g.index),
-                      ),
-                      onOpenGroup: () => _openFolderGroup(g.index),
-                      onIgnoreGroup: () {
-                        if (_focusedFolder == g.index) setState(() => _focusedFolder = null);
-                        ignoreGroup(context, ref, ResultKind.folders, g.index);
-                      },
-                      onIgnoreFolder: (folder) => _ignoreFolder(folder),
-                    ),
-                  ),
-                  detail: _focusedFolder == null
-                      ? null
-                      : FolderCompareView(key: ValueKey(_focusedFolder), groupIndex: _focusedFolder!, embedded: true),
-                  onClose: () => setState(() => _focusedFolder = null),
-                ),
-                if (!(summary?.photosAnalyzed ?? false))
-                  const PhotoAnalyzeCard()
-                else if (_mediaView == _MediaView.photos)
-                  _GroupList<SimilarGroupDto>(
-                    list: _similar!,
-                    emptyMessage: 'No similar photos',
-                    header: _MediaHeader(
-                      view: _mediaView,
-                      issueKind: _photoIssueKind,
-                      onView: (v) => setState(() => _mediaView = v),
-                      onIssueKind: (k) => _setQuery(() => _photoIssueKind = k),
-                      onReanalyze: () => analyzePhotosFlow(context, ref),
-                    ),
-                    itemBuilder: (g) => SimilarGroupCard(
-                      group: g,
-                      onSelect: (id, sel) => _apply(
-                        (r) => r.setSimilarSelected(fileId: id, selected: sel),
-                        refresh: (r) {
-                          final updated = r.similarGroup(index: g.index);
-                          if (updated != null) _similar?.replaceWhere((x) => x.index == g.index, (_) => updated);
-                        },
-                      ),
-                    ),
-                  )
-                else if (_mediaView == _MediaView.issues)
-                  _GroupList<PhotoDto>(
-                    list: _photoList!,
-                    emptyMessage: 'No blurry or dark photos or screenshots',
-                    header: _MediaHeader(
-                      view: _mediaView,
-                      issueKind: _photoIssueKind,
-                      onView: (v) => setState(() => _mediaView = v),
-                      onIssueKind: (k) => _setQuery(() => _photoIssueKind = k),
-                      onReanalyze: () => analyzePhotosFlow(context, ref),
-                    ),
-                    itemBuilder: (p) => PhotoIssueTile(
-                      photo: p,
-                      roots: state.roots,
-                      onSelect: (id, sel) => _apply(
-                        (r) => r.setPhotoSelected(fileId: id, selected: sel),
-                        refresh: (_) => _photoList?.replaceWhere(
-                          (x) => x.id == id,
-                          (x) => PhotoDto(
-                            id: x.id,
-                            path: x.path,
-                            name: x.name,
-                            parent: x.parent,
-                            size: x.size,
-                            modifiedMs: x.modifiedMs,
-                            width: x.width,
-                            height: x.height,
-                            issues: x.issues,
-                            best: x.best,
-                            selected: sel,
-                          ),
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  _GroupList<MediaGroupDto>(
-                    list: _mediaGroups!,
-                    emptyMessage: 'No songs or videos that sound the same',
-                    header: _MediaHeader(
-                      view: _mediaView,
-                      issueKind: _photoIssueKind,
-                      onView: (v) => setState(() => _mediaView = v),
-                      onIssueKind: (k) => _setQuery(() => _photoIssueKind = k),
-                      onReanalyze: () => analyzePhotosFlow(context, ref),
-                    ),
-                    itemBuilder: (g) => MediaGroupCard(
-                      group: g,
-                      onSelect: (id, sel) => _apply(
-                        (r) => r.setMediaSelected(fileId: id, selected: sel),
-                        refresh: (r) {
-                          final updated = r.mediaGroup(index: g.index);
-                          if (updated != null) _mediaGroups?.replaceWhere((x) => x.index == g.index, (_) => updated);
-                        },
-                      ),
-                    ),
-                  ),
-                _GroupList<FileEntryDto>(
-                  list: _large!,
-                  emptyMessage: _largeMin > 0 ? 'No files this large' : 'No large files found',
-                  header: _LargeFilesHeader(
-                    selected: _largeMin,
-                    onChanged: (bytes) => _setQuery(() => _largeMin = bytes),
-                  ),
-                  itemBuilder: (f) => LargeFileTile(
-                    file: f,
-                    roots: state.roots,
-                    onSelect: (id, sel) => _apply(
-                      (r) => r.setLargeFileSelected(fileId: id, selected: sel),
-                      refresh: (_) => _large?.replaceWhere(
-                        (x) => x.id == id,
-                        (x) => FileEntryDto(
-                          id: x.id,
-                          path: x.path,
-                          name: x.name,
-                          parent: x.parent,
-                          size: x.size,
-                          modifiedMs: x.modifiedMs,
-                          createdMs: x.createdMs,
-                          hidden: x.hidden,
-                          selected: sel,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                _GroupList<FileEntryDto>(
-                  list: _old!,
-                  emptyMessage: 'Nothing this old here',
-                  header: _OldFilesHeader(
-                    days: _oldDays,
-                    scope: _oldScope,
-                    hasDownloads: ref.read(appPathsProvider).downloadDirs.isNotEmpty,
-                    onDays: (d) => _setQuery(() => _oldDays = d),
-                    onScope: (s) => _setQuery(() => _oldScope = s),
-                  ),
-                  itemBuilder: (f) => LargeFileTile(
-                    file: f,
-                    roots: state.roots,
-                    onSelect: (id, sel) => _apply(
-                      (r) => r.setOldFileSelected(fileId: id, selected: sel),
-                      refresh: (_) {
-                        FileEntryDto flip(FileEntryDto x) => FileEntryDto(
-                          id: x.id,
-                          path: x.path,
-                          name: x.name,
-                          parent: x.parent,
-                          size: x.size,
-                          modifiedMs: x.modifiedMs,
-                          createdMs: x.createdMs,
-                          hidden: x.hidden,
-                          selected: sel,
-                        );
-                        _old?.replaceWhere((x) => x.id == id, flip);
-                      },
-                    ),
-                  ),
-                ),
-                _GroupList<JunkEntryDto>(
-                  list: _junk!,
-                  emptyMessage: _junkKind != null ? 'Nothing of this kind' : 'No junk found',
-                  header: _JunkHeader(selected: _junkKind, onChanged: (k) => _setQuery(() => _junkKind = k)),
-                  itemBuilder: (j) => JunkTile(
-                    item: j,
-                    roots: state.roots,
-                    onSelect: (id, sel) => _apply(
-                      (r) => r.setJunkSelected(junkId: id, selected: sel),
-                      refresh: (_) => _junk?.replaceWhere(
-                        (x) => x.id == id,
-                        (x) => JunkEntryDto(
-                          id: x.id,
-                          path: x.path,
-                          name: x.name,
-                          parent: x.parent,
-                          size: x.size,
-                          modifiedMs: x.modifiedMs,
-                          kind: x.kind,
-                          safe: x.safe,
-                          selected: sel,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                _GroupList<FolderEntryDto>(
-                  list: _empty!,
-                  emptyMessage: 'No empty folders',
-                  header: Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: _selectAllEmpty,
-                      icon: const Icon(Icons.select_all),
-                      label: const Text('Select all'),
-                    ),
-                  ),
-                  itemBuilder: (f) => EmptyFolderTile(
-                    folder: f,
-                    onSelect: (id, sel) => _apply(
-                      (r) => r.setFolderSelected(folderId: id, selected: sel),
-                      refresh: (r) => _empty?.replaceWhere(
-                        (x) => x.id == id,
-                        (x) => FolderEntryDto(
-                          id: x.id,
-                          path: x.path,
-                          name: x.name,
-                          parent: x.parent,
-                          modifiedMs: x.modifiedMs,
-                          selected: sel,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      // No selection bar on the photos tab until the photos are analysed.
-      bottomNavigationBar:
-          summary == null || (_kinds[_tabs.index] == ResultKind.similarPhotos && !summary.photosAnalyzed)
+      body: Focus(focusNode: _listFocus, onKeyEvent: _onKey, child: body),
+      // No selection bar for the media sections until the media is analysed.
+      bottomNavigationBar: summary == null || needsAnalysis
           ? null
           : _SelectionBar(
               kind: _kind,
@@ -854,47 +860,54 @@ class _ResultsPageState extends ConsumerState<ResultsPage> with SingleTickerProv
     );
   }
 
-  /// On wide screens an opened group is shown next to the list; otherwise
-  /// the list uses the full width.
-  Widget _withDetail({required Widget list, required Widget? detail, required VoidCallback onClose}) {
-    if (!context.isExpanded || detail == null) return list;
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Expanded(flex: 5, child: list),
-        const VerticalDivider(width: 1),
-        Expanded(
-          flex: 4,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 4, 0),
-                child: Row(
-                  children: [
-                    Expanded(child: Text('Group details', style: theme.textTheme.labelLarge)),
-                    IconButton(tooltip: 'Close', icon: const Icon(Icons.close), onPressed: onClose),
-                  ],
-                ),
-              ),
-              Expanded(child: detail),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
+  /// Filter chips shown above a section's list.
+  Widget? _filtersFor(ResultKind kind) => switch (kind) {
+    ResultKind.files when _categories.length > 1 => _CategoryChips(
+      categories: _categories,
+      selected: _category,
+      onChanged: (c) => _setQuery(() => _category = c),
+    ),
+    ResultKind.largeFiles => _LargeFilesHeader(selected: _largeMin, onChanged: (b) => _setQuery(() => _largeMin = b)),
+    ResultKind.oldFiles => _OldFilesHeader(
+      days: _oldDays,
+      scope: _oldScope,
+      hasDownloads: ref.read(appPathsProvider).downloadDirs.isNotEmpty,
+      onDays: (d) => _setQuery(() => _oldDays = d),
+      onScope: (s) => _setQuery(() => _oldScope = s),
+    ),
+    ResultKind.junk => _JunkHeader(selected: _junkKind, onChanged: (k) => _setQuery(() => _junkKind = k)),
+    ResultKind.photoIssues when ref.read(resultsProvider).summary?.photosAnalyzed ?? false => _PhotoIssueChips(
+      selected: _photoIssueKind,
+      onChanged: (k) => _setQuery(() => _photoIssueKind = k),
+      onReanalyze: () => analyzePhotosFlow(context, ref),
+    ),
+    ResultKind.similarPhotos ||
+    ResultKind.similarMedia when ref.read(resultsProvider).summary?.photosAnalyzed ?? false => Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: () => analyzePhotosFlow(context, ref),
+        icon: const Icon(Icons.refresh, size: 18),
+        label: const Text('Analyse again'),
+      ),
+    ),
+    _ => null,
+  };
 
-class _GroupList<T> extends StatelessWidget {
-  const _GroupList({required this.list, required this.itemBuilder, required this.emptyMessage, this.header});
+  String _emptyMessage(ResultKind kind) => switch (kind) {
+    ResultKind.files =>
+      _category != null || _search.isNotEmpty ? 'No groups match the filter' : 'No duplicate files left',
+    ResultKind.folders => 'No duplicate folders',
+    ResultKind.similarPhotos => 'No similar photos',
+    ResultKind.photoIssues => 'No blurry or dark photos or screenshots',
+    ResultKind.similarMedia => 'No songs or videos that sound the same',
+    ResultKind.largeFiles => _largeMin > 0 ? 'No files this large' : 'No large files found',
+    ResultKind.oldFiles => 'Nothing this old here',
+    ResultKind.junk => _junkKind != null ? 'Nothing of this kind' : 'No junk found',
+    ResultKind.emptyFolders => 'No empty folders',
+  };
 
-  final PagedList<T> list;
-  final Widget Function(T item) itemBuilder;
-  final String emptyMessage;
-  final Widget? header;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _listBody(ResultKind kind, ResultsState state) {
+    final list = _listFor(kind)!;
     return ListenableBuilder(
       listenable: list,
       builder: (context, _) {
@@ -906,87 +919,138 @@ class _GroupList<T> extends StatelessWidget {
             message: errorMessage(list.error!),
           );
         }
-        if (total == null) return const Center(child: CircularProgressIndicator());
-        if (total == 0) {
-          final empty = EmptyState(icon: Icons.check_circle_outline, title: emptyMessage);
-          if (header == null) return empty;
-          // Keep filters reachable when they match nothing.
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(context.isCompact ? 12 : 20, 12, context.isCompact ? 12 : 20, 0),
-                child: header,
-              ),
-              Expanded(child: empty),
-            ],
-          );
-        }
-        final offset = header == null ? 0 : 1;
+        if (total == null) return const SizedBox.shrink();
+        if (total == 0) return EmptyState(icon: Icons.check, title: _emptyMessage(kind));
+        final focus = _focusOf(kind).clamp(0, total - 1);
         return Scrollbar(
-          child: ListView.separated(
-            padding: EdgeInsets.fromLTRB(context.isCompact ? 12 : 20, 12, context.isCompact ? 12 : 20, 24),
-            itemCount: total + offset,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
+          controller: _scrollFor(kind),
+          child: ListView.builder(
+            controller: _scrollFor(kind),
+            itemExtent: reviewRowExtent,
+            itemCount: total,
             itemBuilder: (context, i) {
-              if (i < offset) return header!;
-              final item = list.itemAt(i - offset);
-              if (item == null) return const _Placeholder();
-              return itemBuilder(item);
+              final item = list.itemAt(i);
+              if (item == null) return const _RowPlaceholder();
+              return _row(kind, item, i, focused: !context.isCompact && i == focus, roots: state.roots);
             },
           ),
         );
       },
     );
   }
-}
 
-class _Placeholder extends StatelessWidget {
-  const _Placeholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: SizedBox(
-        height: 120,
-        child: Center(
-          child: LinearProgressIndicator(minHeight: 2, color: Theme.of(context).colorScheme.outlineVariant),
-        ),
+  Widget _row(ResultKind kind, Object? item, int pos, {required bool focused, required List<String> roots}) {
+    void open() => _openRow(pos);
+    return switch (item) {
+      FileGroupDto g => fileGroupRow(context, g, focused: focused, onTap: open),
+      FolderGroupDto g => folderGroupRow(context, g, focused: focused, onTap: open),
+      SimilarGroupDto g => similarGroupRow(context, g, focused: focused, onTap: open),
+      MediaGroupDto g => mediaGroupRow(context, g, focused: focused, onTap: open),
+      PhotoDto p => photoIssueRow(context, p, roots, focused: focused, onTap: open, onSelect: _selectPhoto),
+      JunkEntryDto j => junkRow(context, j, roots, focused: focused, onTap: open, onSelect: _selectJunk),
+      FolderEntryDto f => emptyFolderRow(context, f, focused: focused, onTap: open, onSelect: _selectEmpty),
+      FileEntryDto f => fileEntryRow(
+        context,
+        f,
+        roots,
+        focused: focused,
+        onTap: open,
+        onSelect: kind == ResultKind.oldFiles ? _selectOld : _selectLarge,
       ),
+      _ => const _RowPlaceholder(),
+    };
+  }
+
+  /// The preview pane for the focused row.
+  Widget _detailPane(ResultKind kind) {
+    final list = _listFor(kind)!;
+    return ListenableBuilder(
+      listenable: list,
+      builder: (context, _) {
+        final total = list.total;
+        if (total == null || total == 0) return const SizedBox.shrink();
+        return _detailAt(kind, _focusOf(kind).clamp(0, total - 1));
+      },
     );
+  }
+
+  Widget _detailAt(ResultKind kind, int pos) {
+    final item = _listFor(kind)?.itemAt(pos);
+    if (item == null) return const SizedBox.shrink();
+    return switch (item) {
+      FileGroupDto g => FileGroupDetail(
+        key: ValueKey('files-${g.index}'),
+        groupIndex: g.index,
+        apply: (call) => _apply(call, refresh: (r) => _refreshFileGroup(r, g.index)),
+        onIgnoreGroup: () => ignoreGroup(context, ref, ResultKind.files, g.index),
+        onIgnoreFolder: _ignoreFolder,
+      ),
+      FolderGroupDto g => FolderGroupDetail(
+        key: ValueKey('folders-${g.index}'),
+        groupIndex: g.index,
+        apply: (call) => _apply(call, refresh: (r) => _refreshFolderGroup(r, g.index)),
+        onIgnoreGroup: () => ignoreGroup(context, ref, ResultKind.folders, g.index),
+        onIgnoreFolder: _ignoreFolder,
+      ),
+      SimilarGroupDto g => SimilarPhotosDetail(
+        key: ValueKey('similar-${g.index}'),
+        groupIndex: g.index,
+        apply: (call) => _apply(call, refresh: (r) => _refreshSimilar(r, g.index)),
+      ),
+      MediaGroupDto g => MediaGroupDetail(
+        key: ValueKey('media-${g.index}'),
+        groupIndex: g.index,
+        apply: (call) => _apply(call, refresh: (r) => _refreshMedia(r, g.index)),
+      ),
+      PhotoDto p => photoIssueDetail(context, p, onChanged: (v) => _selectPhoto(p.id, v)),
+      JunkEntryDto j => junkDetail(context, j, onChanged: (v) => _selectJunk(j.id, v)),
+      FolderEntryDto f => EmptyFolderDetail(key: ValueKey(f.id), folder: f, onChanged: (v) => _selectEmpty(f.id, v)),
+      FileEntryDto f when kind == ResultKind.oldFiles => fileEntryDetail(
+        f,
+        kindLabel: 'Not changed for ${formatRelative(f.modifiedMs).replaceAll(' ago', '')}',
+        onChanged: (v) => _selectOld(f.id, v),
+      ),
+      FileEntryDto f => fileEntryDetail(
+        f,
+        kindLabel: 'Large file · ${formatBytes(f.size)}',
+        onChanged: (v) => _selectLarge(f.id, v),
+      ),
+      _ => const SizedBox.shrink(),
+    };
   }
 }
 
-class _SummaryHeader extends StatelessWidget {
-  const _SummaryHeader({
-    required this.stats,
-    required this.summary,
-    required this.categories,
-    required this.selected,
-    required this.showCategories,
-    required this.onCategory,
-    this.reopenedFrom,
-  });
+class _RowPlaceholder extends StatelessWidget {
+  const _RowPlaceholder();
 
-  /// When the reopened (saved) results were scanned; `null` for a new scan.
-  final DateTime? reopenedFrom;
-  final ScanStatsDto stats;
-  final SelectionSummaryDto? summary;
-  final List<CategoryStat> categories;
-  final Category? selected;
-  final bool showCategories;
-  final ValueChanged<Category?> onCategory;
+  @override
+  Widget build(BuildContext context) => Container(
+    height: reviewRowExtent,
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerLowest,
+      border: Border(bottom: BorderSide(color: context.ds.hairline)),
+    ),
+  );
+}
+
+/// "30.9 MB can be freed" and what the scan covered.
+class _Summary extends StatelessWidget {
+  const _Summary({required this.state, required this.large});
+
+  final ResultsState state;
+  final bool large;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final ds = context.ds;
+    final summary = state.summary;
+    final stats = state.stats!;
     final reclaimable = summary?.fileWasted ?? stats.wastedBytes;
     final groups = summary?.activeFileGroups ?? stats.duplicateGroups;
-    final compact = context.isCompact;
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(compact ? 16 : 24, 0, compact ? 16 : 24, 8),
+    final restored = state.restored ? state.finishedAt : null;
+    return Padding(
+      padding: large ? const EdgeInsets.fromLTRB(20, 20, 20, 16) : const EdgeInsets.fromLTRB(16, 10, 16, 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -995,77 +1059,350 @@ class _SummaryHeader extends StatelessWidget {
               children: [
                 TextSpan(
                   text: formatBytes(reclaimable),
-                  style: displayStyle(context.isCompact ? 34 : 44, color: context.ds.ink).copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+                  style: displayStyle(
+                    large ? 44 : 30,
+                    color: ds.ink,
+                  ).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
                 ),
                 TextSpan(
-                  text: '  can be freed',
+                  text: large ? '\ncan be freed' : '  can be freed',
                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 4),
           Text(
-            '${plural(groups, 'duplicate group')} · '
-            '${formatCount(stats.filesSeen)} files scanned in ${formatDuration(Duration(milliseconds: stats.elapsedMs))}',
-            style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            '${plural(groups, 'duplicate group')} · ${formatCount(stats.filesSeen)} files scanned in '
+            '${formatDuration(Duration(milliseconds: stats.elapsedMs))}',
+            style: theme.textTheme.bodySmall,
           ),
-          if (showCategories && categories.length > 1) ...[
-            const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  ChoiceChip(
-                    label: const Text('All types'),
-                    selected: selected == null,
-                    onSelected: (_) => onCategory(null),
-                  ),
-                  for (final c in categories)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: ChoiceChip(
-                        avatar: Icon(
-                          categoryIcon(c.category),
-                          size: 18,
-                          color: categoryColor(c.category, theme.brightness),
-                        ),
-                        label: Text('${categoryLabel(c.category)} · ${formatBytes(c.wasted)}'),
-                        selected: selected == c.category,
-                        onSelected: (on) => onCategory(on ? c.category : null),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-          if (reopenedFrom != null)
+          if (restored != null)
             Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(
-                children: [
-                  Icon(Icons.history, size: 16, color: scheme.onSurfaceVariant),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Saved results from ${formatRelative(reopenedFrom!.millisecondsSinceEpoch)}. '
-                      'Files changed since then are skipped when cleaning.',
-                      style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-                    ),
-                  ),
-                ],
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Saved results from ${formatRelative(restored.millisecondsSinceEpoch)}. '
+                'Files changed since then are skipped when cleaning.',
+                style: theme.textTheme.bodySmall,
               ),
             ),
           if (stats.errors > 0)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.only(top: 4),
               child: Text(
-                '${plural(stats.errors, 'item')} could not be read (permissions or in use) — see ⋮ › Unreadable items.',
-                style: theme.textTheme.bodySmall?.copyWith(color: scheme.error),
+                '${plural(stats.errors, 'item')} could not be read — see ⋮ › Unreadable items.',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Wide screens: the summary and every section, grouped.
+class _SectionsPanel extends StatelessWidget {
+  const _SectionsPanel({required this.sections, required this.selected, required this.onSelect, required this.header});
+
+  final List<_Section> sections;
+  final ResultKind selected;
+  final ValueChanged<ResultKind> onSelect;
+  final Widget header;
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = <String, List<_Section>>{};
+    for (final s in sections) {
+      groups.putIfAbsent(s.group, () => []).add(s);
+    }
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surfaceContainerLowest,
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 16),
+        children: [
+          header,
+          for (final MapEntry(key: name, value: items) in groups.entries) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+              child: Text(name.toUpperCase(), style: capsStyle(context.ds.muted)),
+            ),
+            for (final s in items)
+              _SectionTile(section: s, selected: s.kind == selected, onTap: () => onSelect(s.kind)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTile extends StatelessWidget {
+  const _SectionTile({required this.section, required this.selected, required this.onTap});
+
+  final _Section section;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ds = context.ds;
+    final empty = section.count == 0;
+    final fg = selected ? theme.colorScheme.surface : (empty ? ds.muted : ds.ink);
+    return Material(
+      key: ValueKey('section-${section.kind.name}'),
+      color: selected ? ds.ink : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 9, 16, 9),
+          child: Row(
+            children: [
+              Icon(section.icon, size: 20, color: fg),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  section.label,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: fg,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  ),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    section.count == null ? '–' : formatCount(section.count!),
+                    key: ValueKey('count-${section.kind.name}'),
+                    style: displayStyle(18, color: fg).copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                  ),
+                  if (section.bytes != null && section.bytes! > 0)
+                    Text(
+                      formatBytes(section.bytes!),
+                      style: theme.textTheme.labelSmall?.copyWith(color: selected ? fg : ds.muted),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Phones and medium widths: sections as a scrollable row of chips.
+class _SectionChips extends StatelessWidget {
+  const _SectionChips({required this.sections, required this.selected, required this.onSelect});
+
+  final List<_Section> sections;
+  final ResultKind selected;
+  final ValueChanged<ResultKind> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final ds = context.ds;
+    final surface = Theme.of(context).colorScheme.surface;
+    return Container(
+      decoration: BoxDecoration(border: Border(bottom: ds.rule)),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+        child: Row(
+          spacing: 8,
+          children: [
+            for (final s in sections)
+              if (s.count != 0 || s.kind == selected)
+                ChoiceChip(
+                  key: ValueKey('section-${s.kind.name}'),
+                  showCheckmark: false,
+                  selected: s.kind == selected,
+                  onSelected: (_) => onSelect(s.kind),
+                  label: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(s.label),
+                      const SizedBox(width: 8),
+                      Text(
+                        s.count == null ? '–' : formatCount(s.count!),
+                        key: ValueKey('count-${s.kind.name}'),
+                        style: TextStyle(fontWeight: FontWeight.w800, color: s.kind == selected ? surface : ds.accent),
+                      ),
+                    ],
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The middle column: what this section is, its filters and its rows.
+class _ListPane extends StatelessWidget {
+  const _ListPane({required this.section, required this.child, required this.showKeys, this.filters});
+
+  final _Section section;
+  final Widget? filters;
+  final Widget child;
+  final bool showKeys;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ds = context.ds;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Text(section.label, style: displayStyle(context.isCompact ? 22 : 26, color: ds.ink)),
+                  ),
+                  if (showKeys) Text('↑ ↓ TO MOVE', style: capsStyle(ds.muted, size: 10)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(section.description, style: theme.textTheme.bodySmall),
+              if (filters != null) ...[const SizedBox(height: 10), filters!],
+            ],
+          ),
+        ),
+        Divider(height: 1, thickness: 1, color: ds.hairline),
+        Expanded(child: child),
+      ],
+    );
+  }
+}
+
+/// Full-screen preview on phones, with previous/next.
+class _DetailPage extends StatefulWidget {
+  const _DetailPage({
+    required this.title,
+    required this.total,
+    required this.initial,
+    required this.listenable,
+    required this.builder,
+    required this.onPosition,
+  });
+
+  final String title;
+  final int Function() total;
+  final int initial;
+  final Listenable listenable;
+  final Widget Function(int pos) builder;
+  final ValueChanged<int> onPosition;
+
+  @override
+  State<_DetailPage> createState() => _DetailPageState();
+}
+
+class _DetailPageState extends State<_DetailPage> {
+  late int _pos = widget.initial;
+
+  void _go(int delta) {
+    final total = widget.total();
+    if (total == 0) return;
+    setState(() => _pos = (_pos + delta).clamp(0, total - 1));
+    widget.onPosition(_pos);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, _) {
+        // Rebuild on any selection change.
+        ref.watch(resultsProvider.select((r) => (r.generation, r.selectionVersion)));
+        return ListenableBuilder(
+          listenable: widget.listenable,
+          builder: (context, _) {
+            final total = widget.total();
+            return Scaffold(
+              appBar: AppBar(
+                title: Text(widget.title),
+                actions: [
+                  if (total > 0) Center(child: Text('${_pos + 1} / $total', style: capsStyle(context.ds.muted))),
+                  IconButton(
+                    tooltip: 'Previous',
+                    onPressed: _pos > 0 ? () => _go(-1) : null,
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                  IconButton(
+                    tooltip: 'Next',
+                    onPressed: _pos < total - 1 ? () => _go(1) : null,
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                ],
+              ),
+              body: total == 0 ? const SizedBox.shrink() : widget.builder(_pos.clamp(0, total - 1)),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// File-type filter for duplicate files.
+class _CategoryChips extends StatelessWidget {
+  const _CategoryChips({required this.categories, required this.selected, required this.onChanged});
+
+  final List<CategoryStat> categories;
+  final Category? selected;
+  final ValueChanged<Category?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        spacing: 8,
+        children: [
+          ChoiceChip(label: const Text('All types'), selected: selected == null, onSelected: (_) => onChanged(null)),
+          for (final c in categories)
+            ChoiceChip(
+              avatar: Icon(categoryIcon(c.category), size: 18, color: categoryColor(c.category, theme.brightness)),
+              label: Text('${categoryLabel(c.category)} · ${formatBytes(c.wasted)}'),
+              selected: selected == c.category,
+              onSelected: (on) => onChanged(on ? c.category : null),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Issue filter for photos to review.
+class _PhotoIssueChips extends StatelessWidget {
+  const _PhotoIssueChips({required this.selected, required this.onChanged, required this.onReanalyze});
+
+  final PhotoIssueKind? selected;
+  final ValueChanged<PhotoIssueKind?> onChanged;
+  final VoidCallback onReanalyze;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        spacing: 8,
+        children: [
+          ChoiceChip(label: const Text('All'), selected: selected == null, onSelected: (_) => onChanged(null)),
+          for (final k in PhotoIssueKind.values)
+            ChoiceChip(
+              avatar: Icon(photoIssueIcon(k), size: 18),
+              label: Text(photoIssueLabel(k)),
+              selected: selected == k,
+              onSelected: (on) => onChanged(on ? k : null),
+            ),
+          IconButton(tooltip: 'Analyse again', onPressed: onReanalyze, icon: const Icon(Icons.refresh)),
         ],
       ),
     );
@@ -1448,74 +1785,6 @@ class _OldFilesHeader extends StatelessWidget {
             ],
           ),
         ),
-      ],
-    );
-  }
-}
-
-enum _MediaView { photos, issues, media }
-
-/// Switches the media tab between similar photos, photos to review and
-/// similar songs and videos.
-class _MediaHeader extends StatelessWidget {
-  const _MediaHeader({
-    required this.view,
-    required this.issueKind,
-    required this.onView,
-    required this.onIssueKind,
-    required this.onReanalyze,
-  });
-
-  final _MediaView view;
-  final PhotoIssueKind? issueKind;
-  final ValueChanged<_MediaView> onView;
-  final ValueChanged<PhotoIssueKind?> onIssueKind;
-  final VoidCallback onReanalyze;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Flexible(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SegmentedButton<_MediaView>(
-                  segments: const [
-                    ButtonSegment(value: _MediaView.photos, label: Text('Photos')),
-                    ButtonSegment(value: _MediaView.issues, label: Text('To review')),
-                    ButtonSegment(value: _MediaView.media, label: Text('Music & video')),
-                  ],
-                  selected: {view},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (s) => onView(s.first),
-                ),
-              ),
-            ),
-            IconButton(tooltip: 'Analyse again', onPressed: onReanalyze, icon: const Icon(Icons.refresh)),
-          ],
-        ),
-        if (view == _MediaView.issues) ...[
-          const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              spacing: 8,
-              children: [
-                ChoiceChip(label: const Text('All'), selected: issueKind == null, onSelected: (_) => onIssueKind(null)),
-                for (final k in PhotoIssueKind.values)
-                  ChoiceChip(
-                    avatar: Icon(photoIssueIcon(k), size: 18),
-                    label: Text(photoIssueLabel(k)),
-                    selected: issueKind == k,
-                    onSelected: (on) => onIssueKind(on ? k : null),
-                  ),
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }

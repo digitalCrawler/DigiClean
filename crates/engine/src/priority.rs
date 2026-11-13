@@ -21,7 +21,9 @@
 pub fn lower_current_thread() {
     #[cfg(windows)]
     {
-        use windows_sys::Win32::System::Threading::{GetCurrentThread, SetThreadPriority, THREAD_MODE_BACKGROUND_BEGIN};
+        use windows_sys::Win32::System::Threading::{
+            GetCurrentThread, SetThreadPriority, THREAD_MODE_BACKGROUND_BEGIN,
+        };
         // SAFETY: the pseudo-handle of the calling thread is always valid.
         unsafe {
             SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
@@ -49,7 +51,10 @@ pub fn lower_current_thread() {
     {
         // Declared here because the libc crate does not export it publicly.
         unsafe extern "C" {
-            fn pthread_set_qos_class_self_np(qos_class: u32, relative_priority: libc::c_int) -> libc::c_int;
+            fn pthread_set_qos_class_self_np(
+                qos_class: u32,
+                relative_priority: libc::c_int,
+            ) -> libc::c_int;
         }
         const QOS_CLASS_UTILITY: u32 = 0x11;
         // SAFETY: affects only the calling thread; failures are ignored.
@@ -66,7 +71,9 @@ pub fn lower_current_thread() {
 pub fn lower_current_process() {
     #[cfg(windows)]
     {
-        use windows_sys::Win32::System::Threading::{GetCurrentProcess, SetPriorityClass, PROCESS_MODE_BACKGROUND_BEGIN};
+        use windows_sys::Win32::System::Threading::{
+            GetCurrentProcess, SetPriorityClass, PROCESS_MODE_BACKGROUND_BEGIN,
+        };
         // SAFETY: the pseudo-handle of the current process is always valid.
         unsafe {
             SetPriorityClass(GetCurrentProcess(), PROCESS_MODE_BACKGROUND_BEGIN);
@@ -77,7 +84,10 @@ pub fn lower_current_process() {
 }
 
 /// A thread pool whose workers run at background priority.
-pub fn background_pool(threads: usize, name: &'static str) -> Result<rayon::ThreadPool, rayon::ThreadPoolBuildError> {
+pub fn background_pool(
+    threads: usize,
+    name: &'static str,
+) -> Result<rayon::ThreadPool, rayon::ThreadPoolBuildError> {
     rayon::ThreadPoolBuilder::new()
         .num_threads(threads.max(1))
         .thread_name(move |i| format!("{name}-{i}"))
@@ -105,7 +115,8 @@ mod tests {
     fn in_background_mode() -> bool {
         use windows_sys::Win32::Foundation::{GetLastError, ERROR_THREAD_MODE_ALREADY_BACKGROUND};
         use windows_sys::Win32::System::Threading::{
-            GetCurrentThread, SetThreadPriority, THREAD_MODE_BACKGROUND_BEGIN, THREAD_MODE_BACKGROUND_END,
+            GetCurrentThread, SetThreadPriority, THREAD_MODE_BACKGROUND_BEGIN,
+            THREAD_MODE_BACKGROUND_END,
         };
         // SAFETY: changes and restores the calling thread only.
         unsafe {
@@ -121,7 +132,10 @@ mod tests {
     #[test]
     fn workers_really_run_at_background_priority() {
         let pool = background_pool(1, "test").unwrap();
-        assert!(pool.install(in_background_mode), "worker threads are in background mode");
+        assert!(
+            pool.install(in_background_mode),
+            "worker threads are in background mode"
+        );
         assert!(!in_background_mode(), "the calling thread is untouched");
     }
 }

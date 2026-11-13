@@ -3,6 +3,7 @@
 //! boundary, which keeps the generated bindings stable.
 
 pub mod maintenance;
+pub mod preview;
 pub mod results;
 pub mod scanner;
 pub mod types;

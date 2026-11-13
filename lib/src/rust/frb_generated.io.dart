@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/maintenance.dart';
+import 'api/preview.dart';
 import 'api/results.dart';
 import 'api/scanner.dart';
 import 'api/types.dart';
@@ -75,7 +76,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ActionType dco_decode_action_type(dynamic raw);
 
   @protected
+  ArchiveEntryDto dco_decode_archive_entry_dto(dynamic raw);
+
+  @protected
+  ArchiveListingDto dco_decode_archive_listing_dto(dynamic raw);
+
+  @protected
   ArchiveReportDto dco_decode_archive_report_dto(dynamic raw);
+
+  @protected
+  AudioPreviewDto dco_decode_audio_preview_dto(dynamic raw);
 
   @protected
   bool dco_decode_bool(dynamic raw);
@@ -133,6 +143,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SimilarGroupDto dco_decode_box_autoadd_similar_group_dto(dynamic raw);
+
+  @protected
+  ThumbnailDto dco_decode_box_autoadd_thumbnail_dto(dynamic raw);
 
   @protected
   TrashInfoDto dco_decode_box_autoadd_trash_info_dto(dynamic raw);
@@ -232,6 +245,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<ArchiveEntryDto> dco_decode_list_archive_entry_dto(dynamic raw);
 
   @protected
   List<Category> dco_decode_list_category(dynamic raw);
@@ -372,6 +388,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SimilarGroupDto? dco_decode_opt_box_autoadd_similar_group_dto(dynamic raw);
 
   @protected
+  ThumbnailDto? dco_decode_opt_box_autoadd_thumbnail_dto(dynamic raw);
+
+  @protected
   TrashInfoDto? dco_decode_opt_box_autoadd_trash_info_dto(dynamic raw);
 
   @protected
@@ -456,6 +475,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SpaceNodeDto dco_decode_space_node_dto(dynamic raw);
 
   @protected
+  ThumbnailDto dco_decode_thumbnail_dto(dynamic raw);
+
+  @protected
   TrashInfoDto dco_decode_trash_info_dto(dynamic raw);
 
   @protected
@@ -528,7 +550,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ActionType sse_decode_action_type(SseDeserializer deserializer);
 
   @protected
+  ArchiveEntryDto sse_decode_archive_entry_dto(SseDeserializer deserializer);
+
+  @protected
+  ArchiveListingDto sse_decode_archive_listing_dto(SseDeserializer deserializer);
+
+  @protected
   ArchiveReportDto sse_decode_archive_report_dto(SseDeserializer deserializer);
+
+  @protected
+  AudioPreviewDto sse_decode_audio_preview_dto(SseDeserializer deserializer);
 
   @protected
   bool sse_decode_bool(SseDeserializer deserializer);
@@ -586,6 +617,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SimilarGroupDto sse_decode_box_autoadd_similar_group_dto(SseDeserializer deserializer);
+
+  @protected
+  ThumbnailDto sse_decode_box_autoadd_thumbnail_dto(SseDeserializer deserializer);
 
   @protected
   TrashInfoDto sse_decode_box_autoadd_trash_info_dto(SseDeserializer deserializer);
@@ -685,6 +719,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<ArchiveEntryDto> sse_decode_list_archive_entry_dto(SseDeserializer deserializer);
 
   @protected
   List<Category> sse_decode_list_category(SseDeserializer deserializer);
@@ -825,6 +862,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SimilarGroupDto? sse_decode_opt_box_autoadd_similar_group_dto(SseDeserializer deserializer);
 
   @protected
+  ThumbnailDto? sse_decode_opt_box_autoadd_thumbnail_dto(SseDeserializer deserializer);
+
+  @protected
   TrashInfoDto? sse_decode_opt_box_autoadd_trash_info_dto(SseDeserializer deserializer);
 
   @protected
@@ -909,6 +949,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SpaceNodeDto sse_decode_space_node_dto(SseDeserializer deserializer);
 
   @protected
+  ThumbnailDto sse_decode_thumbnail_dto(SseDeserializer deserializer);
+
+  @protected
   TrashInfoDto sse_decode_trash_info_dto(SseDeserializer deserializer);
 
   @protected
@@ -987,7 +1030,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_action_type(ActionType self, SseSerializer serializer);
 
   @protected
+  void sse_encode_archive_entry_dto(ArchiveEntryDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_archive_listing_dto(ArchiveListingDto self, SseSerializer serializer);
+
+  @protected
   void sse_encode_archive_report_dto(ArchiveReportDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_audio_preview_dto(AudioPreviewDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
@@ -1045,6 +1097,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_similar_group_dto(SimilarGroupDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_thumbnail_dto(ThumbnailDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_trash_info_dto(TrashInfoDto self, SseSerializer serializer);
@@ -1144,6 +1199,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_archive_entry_dto(List<ArchiveEntryDto> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_category(List<Category> self, SseSerializer serializer);
@@ -1284,6 +1342,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_similar_group_dto(SimilarGroupDto? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_thumbnail_dto(ThumbnailDto? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_trash_info_dto(TrashInfoDto? self, SseSerializer serializer);
 
   @protected
@@ -1366,6 +1427,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_space_node_dto(SpaceNodeDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_thumbnail_dto(ThumbnailDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_trash_info_dto(TrashInfoDto self, SseSerializer serializer);

@@ -58,10 +58,7 @@ class SectionHeader extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              title.toUpperCase(),
-              style: capsStyle(ds.ink, size: 12).copyWith(fontWeight: FontWeight.w700),
-            ),
+            child: Text(title.toUpperCase(), style: capsStyle(ds.ink, size: 12).copyWith(fontWeight: FontWeight.w700)),
           ),
           ?trailing,
         ],
@@ -93,11 +90,17 @@ class EmptyState extends StatelessWidget {
               Container(
                 width: 72,
                 height: 72,
-                decoration: BoxDecoration(border: Border.all(color: ds.ink, width: Tokens.rule)),
+                decoration: BoxDecoration(
+                  border: Border.all(color: ds.ink, width: Tokens.rule),
+                ),
                 child: Icon(icon, size: 32, color: ds.ink),
               ),
               const SizedBox(height: 24),
-              Text(title, style: displayStyle(30, color: ds.ink), textAlign: TextAlign.center),
+              Text(
+                title,
+                style: displayStyle(30, color: ds.ink),
+                textAlign: TextAlign.center,
+              ),
               if (message != null) ...[
                 const SizedBox(height: 12),
                 Text(
@@ -133,9 +136,7 @@ class TagChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final ds = context.ds;
     final c = color ?? ds.ink;
-    final fg = outlined
-        ? c
-        : (ThemeData.estimateBrightnessForColor(c) == Brightness.dark ? Colors.white : Tokens.text);
+    final fg = outlined ? c : (ThemeData.estimateBrightnessForColor(c) == Brightness.dark ? Colors.white : Tokens.text);
     final style = caps
         ? capsStyle(fg, size: 10.5).copyWith(fontWeight: FontWeight.w800)
         : Theme.of(context).textTheme.labelMedium?.copyWith(color: fg, fontWeight: FontWeight.w600);

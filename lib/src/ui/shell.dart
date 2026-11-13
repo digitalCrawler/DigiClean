@@ -147,12 +147,13 @@ class _AppShellState extends ConsumerState<AppShell> {
           NavigationRail(
             selectedIndex: index,
             onDestinationSelected: _select,
-            extended: context.isExpanded,
+            // The full wordmark needs room the results workspace would otherwise use.
+            extended: context.width >= 1600,
             minExtendedWidth: 200,
-            labelType: context.isExpanded ? NavigationRailLabelType.none : NavigationRailLabelType.all,
+            labelType: context.width >= 1600 ? NavigationRailLabelType.none : NavigationRailLabelType.all,
             leading: Padding(
               padding: const EdgeInsets.fromLTRB(4, 18, 4, 20),
-              child: _Logo(extended: context.isExpanded),
+              child: _Logo(extended: context.width >= 1600),
             ),
             destinations: [
               for (var i = 0; i < _destinations.length; i++)
@@ -182,7 +183,10 @@ class _Logo extends StatelessWidget {
     final ds = context.ds;
     final mark = Container(width: extended ? 14 : 22, height: extended ? 14 : 22, color: ds.accent);
     if (!extended) {
-      return Semantics(label: 'DigiClean', child: Padding(padding: const EdgeInsets.all(9), child: mark));
+      return Semantics(
+        label: 'DigiClean',
+        child: Padding(padding: const EdgeInsets.all(9), child: mark),
+      );
     }
     return Row(
       mainAxisSize: MainAxisSize.min,

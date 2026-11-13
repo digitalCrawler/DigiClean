@@ -82,7 +82,10 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                     color: ds.ink,
-                    child: Text('DUPLICATE FILE & FOLDER FINDER', style: capsStyle(scheme.surface, size: 11).copyWith(fontWeight: FontWeight.w700)),
+                    child: Text(
+                      'DUPLICATE FILE & FOLDER FINDER',
+                      style: capsStyle(scheme.surface, size: 11).copyWith(fontWeight: FontWeight.w700),
+                    ),
                   ),
                   const SizedBox(height: 18),
                   Text.rich(
@@ -119,10 +122,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                         children: [
                           SizedBox(
                             width: 44,
-                            child: Text(
-                              (i + 1).toString().padLeft(2, '0'),
-                              style: displayStyle(20, color: ds.accent),
-                            ),
+                            child: Text((i + 1).toString().padLeft(2, '0'), style: displayStyle(20, color: ds.accent)),
                           ),
                           Expanded(
                             child: Column(

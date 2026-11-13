@@ -13,7 +13,7 @@ import 'package:digiclean/src/rust/api/maintenance.dart';
 import 'package:digiclean/src/rust/api/scanner.dart';
 import 'package:digiclean/src/rust/api/types.dart';
 import 'package:digiclean/src/rust/frb_generated.dart';
-import 'package:digiclean/src/ui/results/group_cards.dart';
+import 'package:digiclean/src/ui/results/review_detail.dart';
 import 'package:digiclean/src/state/history.dart';
 import 'package:digiclean/src/state/ignore_list.dart';
 import 'package:digiclean/src/state/locations.dart';
@@ -24,7 +24,7 @@ import 'package:digiclean/src/state/background_check.dart';
 import 'package:digiclean/src/state/settings.dart';
 import 'package:digiclean/src/state/upkeep.dart';
 import 'package:flutter/material.dart'
-    show FilledButton, ScaffoldMessenger, ScaffoldMessengerState, Scrollable, SizedBox;
+    show FilledButton, ScaffoldMessenger, ScaffoldMessengerState, Scrollable, SizedBox, ValueKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart' show AnyhowException;
 import 'package:flutter_test/flutter_test.dart';
@@ -149,6 +149,13 @@ class FakePhotoLibrary implements PhotoLibrarySource {
   }
 }
 
+/// A results section, optionally showing [count] (the sections list
+/// replaced the old "Files (2)" tabs).
+Finder section(String kind, [int? count]) {
+  final tile = find.byKey(ValueKey('section-$kind'));
+  return count == null ? tile : find.descendant(of: tile, matching: find.text('$count'));
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -171,9 +178,18 @@ void main() {
     Directory(p.join(root.path, 'Empty', 'Nested')).createSync(recursive: true);
   });
 
-  tearDown(() {
+  tearDown(() async {
+    // Windows helpers (thumbnails, antivirus, indexing) may still have a
+    // file open for a moment after the test.
     for (final d in [root, bin]) {
-      if (d.existsSync()) d.deleteSync(recursive: true);
+      for (var attempt = 0; d.existsSync(); attempt++) {
+        try {
+          d.deleteSync(recursive: true);
+        } on FileSystemException {
+          if (attempt >= 20) rethrow;
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        }
+      }
     }
   });
 
@@ -337,11 +353,11 @@ void main() {
     await tester.pumpAndSettle();
 
     // Shell switched to the results tab automatically.
-    expect(find.text('Files (2)'), findsOneWidget);
-    expect(find.text('Folders (1)'), findsOneWidget);
-    expect(find.text('Large files (1)'), findsOneWidget);
-    expect(find.text('Junk (1)'), findsOneWidget);
-    expect(find.text('Empty folders (1)'), findsOneWidget);
+    expect(section('files', 2), findsOneWidget);
+    expect(section('folders', 1), findsOneWidget);
+    expect(section('largeFiles', 1), findsOneWidget);
+    expect(section('junk', 1), findsOneWidget);
+    expect(section('emptyFolders', 1), findsOneWidget);
     expect(find.text('beach.jpg'), findsWidgets);
 
     await tester.tap(find.text('Smart select'));
@@ -371,18 +387,18 @@ void main() {
     ).listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.jpg')).length;
     expect(restored, 5);
     await tester.pumpAndSettle();
-    expect(find.text('Files (2)'), findsOneWidget);
+    expect(section('files', 2), findsOneWidget);
 
     // Large files are listed on their own tab, without Smart select.
-    await tester.tap(find.text('Large files (1)'));
+    await tester.tap(section('largeFiles'));
     await tester.pumpAndSettle();
-    expect(find.text('holiday.mp4'), findsOneWidget);
+    expect(find.text('holiday.mp4'), findsWidgets, reason: 'listed and previewed');
     expect(find.text('Smart select'), findsNothing);
 
     // Junk: "Select safe" picks the system cache only.
-    await tester.tap(find.text('Junk (1)'));
+    await tester.tap(section('junk'));
     await tester.pumpAndSettle();
-    expect(find.text('Thumbs.db'), findsOneWidget);
+    expect(find.text('Thumbs.db'), findsWidgets);
     // A snackbar from the previous step may cover the bar.
     tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first).clearSnackBars();
     await tester.pumpAndSettle();
@@ -423,18 +439,19 @@ void main() {
     }
 
     Future<void> openCopyMenu() async {
-      await tester.tap(find.descendant(of: find.byType(FileGroupCard).first, matching: find.byTooltip('More')).first);
+      // The first group is previewed; its first copy's menu.
+      await tester.tap(find.descendant(of: find.byType(FileGroupDetail), matching: find.byTooltip('More')).first);
       await tester.pumpAndSettle();
     }
 
     await scan();
-    expect(find.text('Files (2)'), findsOneWidget);
+    expect(section('files', 2), findsOneWidget);
 
     // beach.jpg (largest group, listed first): not duplicates.
     await openCopyMenu();
     await tester.tap(find.text('Not duplicates'));
     await tester.pumpAndSettle();
-    expect(find.text('Files (1)'), findsOneWidget);
+    expect(section('files', 1), findsOneWidget);
     expect(container.read(ignoreListProvider).single.name, 'beach.jpg');
 
     // day1.jpg: ignore the folder of its first copy.
@@ -442,13 +459,13 @@ void main() {
     await tester.tap(find.textContaining('Ignore “trip”'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ignore folder'));
-    await waitFor(() => find.text('Files (0)').evaluate().isNotEmpty);
-    expect(find.text('Folders (0)'), findsOneWidget, reason: 'Photos no longer matches its copy');
+    await waitFor(() => section('files', 0).evaluate().isNotEmpty);
+    expect(section('folders', 0), findsOneWidget, reason: 'Photos no longer matches its copy');
     expect(container.read(settingsProvider).excludePaths, hasLength(1));
 
     // Both stay hidden in a new scan.
     await scan();
-    expect(find.text('Files (0)'), findsOneWidget);
+    expect(section('files', 0), findsOneWidget);
 
     // Showing the group again from Settings brings it straight back.
     await tester.tap(find.text('Settings').first);
@@ -463,7 +480,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Results').first);
     await tester.pumpAndSettle();
-    expect(find.text('Files (1)'), findsOneWidget);
+    expect(section('files', 1), findsOneWidget);
   });
 
   testWidgets('results are saved and reopened after a restart', (tester) async {
@@ -511,7 +528,7 @@ void main() {
     expect(state.summary!.files, 3, reason: 'the selection is kept');
     await tester.tap(find.text('Results').first);
     await tester.pumpAndSettle();
-    expect(find.text('Files (2)'), findsOneWidget);
+    expect(section('files', 2), findsOneWidget);
     expect(find.textContaining('Saved results from'), findsOneWidget);
     expect(find.text('3 selected'), findsOneWidget);
   });
@@ -583,7 +600,7 @@ void main() {
     await waitFor(() => find.text('setup-2019.exe').evaluate().isNotEmpty);
     await tester.tap(find.text('Installers'));
     await tester.pumpAndSettle();
-    expect(find.text('setup-2019.exe'), findsOneWidget);
+    expect(find.text('setup-2019.exe'), findsWidgets);
   });
 
   testWidgets('photos: similar shots keep the best, screenshots are listed', (tester) async {
@@ -623,13 +640,13 @@ void main() {
 
     await tester.tap(find.text('Scan 1 location'));
     await waitFor(() => container.read(resultsProvider).hasResults);
-    await tester.tap(find.text('Media'));
+    await tester.tap(section('similarPhotos'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Analyse media'));
     await waitFor(() => container.read(resultsProvider).summary?.mediaAnalyzed ?? false);
     expect(container.read(resultsProvider).summary!.similarGroups, 1);
     expect(container.read(resultsProvider).summary!.mediaGroups, 1);
-    expect(find.textContaining('2 similar photos'), findsOneWidget);
+    expect(find.textContaining('2 similar photos'), findsWidgets);
     expect(find.text('BEST'), findsOneWidget);
 
     tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first).clearSnackBars();
@@ -642,14 +659,14 @@ void main() {
     await waitFor(() => !File(p.join(photos.path, 'WhatsApp', 'IMG-WA0001.png')).existsSync());
     expect(File(p.join(photos.path, 'Camera', 'IMG_0001.png')).existsSync(), isTrue, reason: 'the best is kept');
 
-    await tester.tap(find.text('To review'));
+    await tester.tap(section('photoIssues'));
     await tester.pumpAndSettle();
-    expect(find.text('Screenshot 2024-05-01.png'), findsOneWidget);
+    expect(find.text('Screenshot 2024-05-01.png'), findsWidgets);
 
     // The same song in two qualities: keep the bigger one.
-    await tester.tap(find.text('Music & video'));
+    await tester.tap(section('similarMedia'));
     await tester.pumpAndSettle();
-    expect(find.text('2 copies of the same song'), findsOneWidget);
+    expect(find.textContaining('2 copies of the same song'), findsWidgets);
     tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first).clearSnackBars();
     await tester.pumpAndSettle();
     await tester.tap(find.text('Keep best'));

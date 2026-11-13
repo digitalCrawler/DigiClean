@@ -815,7 +815,8 @@ impl ScanResults {
             } else {
                 threads as usize
             };
-            let pool = engine::priority::background_pool(threads, "digiclean-photos").map_err(|e| anyhow!("{e}"))?;
+            let pool = engine::priority::background_pool(threads, "digiclean-photos")
+                .map_err(|e| anyhow!("{e}"))?;
             let done = &self.action_done;
             let (features, failed) = engine::photos::analyze_many(
                 &candidates,
@@ -958,7 +959,8 @@ impl ScanResults {
             } else {
                 threads as usize
             };
-            let pool = engine::priority::background_pool(threads, "digiclean-media").map_err(|e| anyhow!("{e}"))?;
+            let pool = engine::priority::background_pool(threads, "digiclean-media")
+                .map_err(|e| anyhow!("{e}"))?;
             let done = &self.action_done;
             let (features, failed) =
                 engine::media::analyze_many(&candidates, cache.as_ref(), &control, &pool, &|| {

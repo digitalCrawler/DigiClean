@@ -13,7 +13,8 @@ import 'package:digiclean/src/rust/frb_generated.dart';
 import 'package:digiclean/src/state/locations.dart';
 import 'package:digiclean/src/state/results_controller.dart';
 import 'package:digiclean/src/state/settings.dart';
-import 'package:digiclean/src/ui/results/group_cards.dart';
+import 'package:digiclean/src/ui/results/review_detail.dart';
+import 'package:digiclean/src/ui/results/review_rows.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -216,6 +217,18 @@ void main() {
       }
     }
 
+    /// Opens a results section; `false` when it is not shown (phones hide
+    /// empty sections).
+    Future<bool> openSection(String kind) async {
+      final section = find.byKey(ValueKey('section-$kind'));
+      if (section.evaluate().isEmpty) return false;
+      await tester.ensureVisible(section);
+      await tester.pumpAndSettle();
+      await tester.tap(section);
+      await waitFor(() => true);
+      return true;
+    }
+
     for (final (label, size, dark) in [
       ('desktop', const Size(1280, 820), false),
       ('phone', const Size(400, 860), false),
@@ -249,7 +262,8 @@ void main() {
       await waitFor(() => container.read(resultsProvider).hasResults);
       await capture('${label}_1_results', key);
 
-      await tester.tap(find.byTooltip('Compare copies').first);
+      // Desktop previews the first group already; phones open it.
+      await tester.tap(find.byType(ReviewRow).first);
       await waitFor(() => true);
       await capture('${label}_2_compare', key);
       if (label != 'desktop') {
@@ -262,12 +276,8 @@ void main() {
       await tester.tap(find.text('Apply'));
       await waitFor(() => find.textContaining(' selected').evaluate().isNotEmpty);
       await capture('${label}_4_selected', key);
-      await tester.tap(find.textContaining('Folders ('));
-      await waitFor(() => true);
-      await capture('${label}_5_folders', key);
-      await tester.ensureVisible(find.textContaining(RegExp(r'^Large')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.textContaining(RegExp(r'^Large')));
+      if (await openSection('folders')) await capture('${label}_5_folders', key);
+      await openSection('largeFiles');
       await waitFor(() => find.byType(Checkbox).evaluate().isNotEmpty);
       await tester.tap(find.byType(Checkbox).first);
       await waitFor(() => find.text('1 selected').evaluate().isNotEmpty);
@@ -277,15 +287,20 @@ void main() {
       await capture('${label}_7_recovery', key);
       await tester.tap(find.text('Results').last);
       await waitFor(() => true);
-      await tester.ensureVisible(find.textContaining(RegExp(r'^Files \(')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.textContaining(RegExp(r'^Files \(')));
-      await waitFor(() => true);
-      await tester.tap(find.descendant(of: find.byType(FileGroupCard).first, matching: find.byTooltip('More')).first);
+      await openSection('files');
+      if (label != 'desktop') {
+        await tester.tap(find.byType(ReviewRow).first);
+        await waitFor(() => true);
+      }
+      await tester.tap(find.descendant(of: find.byType(FileGroupDetail), matching: find.byTooltip('More')).first);
       await waitFor(() => true);
       await capture('${label}_8_menu', key);
       await tester.tap(find.text('Not duplicates'));
       await waitFor(() => true);
+      if (label != 'desktop') {
+        await tester.pageBack();
+        await waitFor(() => true);
+      }
       await tester.tap(find.text('Settings').last);
       await waitFor(() => true);
       await tester.ensureVisible(find.text('Not duplicates'));
@@ -303,10 +318,7 @@ void main() {
       await waitFor(() => true);
       await tester.tap(find.text('Results').last);
       await waitFor(() => true);
-      await tester.ensureVisible(find.textContaining(RegExp(r'^Junk \(')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.textContaining(RegExp(r'^Junk \(')));
-      await waitFor(() => true);
+      await openSection('junk');
       // A snackbar from the previous step may cover the bar.
       tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first).clearSnackBars();
       await tester.pumpAndSettle();
@@ -314,9 +326,7 @@ void main() {
       await waitFor(() => find.text('1 selected').evaluate().isNotEmpty);
       await capture('${label}_11_junk', key);
       // Photos.
-      await tester.ensureVisible(find.text('Media'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Media'));
+      await openSection('similarPhotos');
       await waitFor(() => find.text('Analyse media').evaluate().isNotEmpty);
       await capture('${label}_16_photos_start', key);
       await tester.tap(find.text('Analyse media'));
@@ -324,11 +334,11 @@ void main() {
       tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first).clearSnackBars();
       await waitFor(() => true);
       await capture('${label}_17_similar', key);
-      await tester.tap(find.text('To review'));
+      await openSection('photoIssues');
       await waitFor(() => find.textContaining('Screenshot 2024').evaluate().isNotEmpty);
       await capture('${label}_18_review', key);
-      await tester.tap(find.text('Music & video'));
-      await waitFor(() => find.text('2 copies of the same song').evaluate().isNotEmpty);
+      await openSection('similarMedia');
+      await waitFor(() => find.textContaining('2 copies of the same song').evaluate().isNotEmpty);
       await capture('${label}_19_music', key);
       tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first).clearSnackBars();
       await waitFor(() => true);
@@ -353,8 +363,9 @@ void main() {
       await capture('${label}_13_spacemap', key);
       await tester.pageBack();
       await waitFor(() => true);
-      await reveal(find.text('Recommended cleanup'));
-      await tester.tap(find.text('Recommended cleanup'));
+      // The low-space banner may offer the same button; use the dashboard's.
+      await reveal(find.text('Recommended cleanup').last);
+      await tester.tap(find.text('Recommended cleanup').last);
       await waitFor(() => find.text('Duplicate downloads').evaluate().isNotEmpty);
       await capture('${label}_14_recommend', key);
       await tester.pageBack();

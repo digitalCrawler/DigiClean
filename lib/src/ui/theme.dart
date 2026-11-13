@@ -261,11 +261,10 @@ ThemeData buildTheme(Brightness brightness) {
   const pill = StadiumBorder();
   final buttonText = text.labelLarge!.copyWith(fontSize: 15, fontWeight: FontWeight.w700);
 
-  WidgetStateProperty<Color?> accentWhenSelected(Color otherwise) =>
-      WidgetStateProperty.resolveWith((s) {
-        if (s.contains(WidgetState.disabled)) return otherwise.withValues(alpha: 0.38);
-        return s.contains(WidgetState.selected) ? ds.accent : otherwise;
-      });
+  WidgetStateProperty<Color?> accentWhenSelected(Color otherwise) => WidgetStateProperty.resolveWith((s) {
+    if (s.contains(WidgetState.disabled)) return otherwise.withValues(alpha: 0.38);
+    return s.contains(WidgetState.selected) ? ds.accent : otherwise;
+  });
 
   return ThemeData(
     useMaterial3: true,
@@ -354,13 +353,11 @@ ThemeData buildTheme(Brightness brightness) {
       ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: ink,
-        shape: pill,
-        textStyle: buttonText.copyWith(fontSize: 14),
-      ),
+      style: TextButton.styleFrom(foregroundColor: ink, shape: pill, textStyle: buttonText.copyWith(fontSize: 14)),
     ),
-    iconButtonTheme: IconButtonThemeData(style: IconButton.styleFrom(foregroundColor: ink, shape: square)),
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(foregroundColor: ink, shape: square),
+    ),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: ds.accent,
       foregroundColor: ds.onAccent,
@@ -417,7 +414,9 @@ ThemeData buildTheme(Brightness brightness) {
       unselectedLabelColor: ds.muted,
       labelStyle: text.titleSmall!.copyWith(fontWeight: FontWeight.w800),
       unselectedLabelStyle: text.titleSmall!.copyWith(fontWeight: FontWeight.w600),
-      indicator: UnderlineTabIndicator(borderSide: BorderSide(color: ds.accent, width: Tokens.rule)),
+      indicator: UnderlineTabIndicator(
+        borderSide: BorderSide(color: ds.accent, width: Tokens.rule),
+      ),
       indicatorSize: TabBarIndicatorSize.tab,
       dividerColor: ink,
       dividerHeight: 1,
@@ -489,17 +488,27 @@ ThemeData buildTheme(Brightness brightness) {
       hintStyle: text.bodyMedium!.copyWith(color: ds.muted),
       border: UnderlineInputBorder(borderSide: control),
       enabledBorder: UnderlineInputBorder(borderSide: control),
-      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: ds.accent, width: Tokens.rule)),
-      errorBorder: UnderlineInputBorder(borderSide: BorderSide(color: scheme.error, width: Tokens.control)),
-      focusedErrorBorder: UnderlineInputBorder(borderSide: BorderSide(color: scheme.error, width: Tokens.rule)),
-      disabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: ds.hairline, width: Tokens.control)),
+      focusedBorder: UnderlineInputBorder(
+        borderSide: BorderSide(color: ds.accent, width: Tokens.rule),
+      ),
+      errorBorder: UnderlineInputBorder(
+        borderSide: BorderSide(color: scheme.error, width: Tokens.control),
+      ),
+      focusedErrorBorder: UnderlineInputBorder(
+        borderSide: BorderSide(color: scheme.error, width: Tokens.rule),
+      ),
+      disabledBorder: UnderlineInputBorder(
+        borderSide: BorderSide(color: ds.hairline, width: Tokens.control),
+      ),
     ),
     dropdownMenuTheme: DropdownMenuThemeData(
       textStyle: text.bodyLarge,
       inputDecorationTheme: InputDecorationTheme(
         border: UnderlineInputBorder(borderSide: control),
         enabledBorder: UnderlineInputBorder(borderSide: control),
-        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: ds.accent, width: Tokens.rule)),
+        focusedBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: ds.accent, width: Tokens.rule),
+        ),
       ),
       menuStyle: MenuStyle(
         backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainerLowest),
