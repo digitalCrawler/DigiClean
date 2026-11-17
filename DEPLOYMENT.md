@@ -146,19 +146,32 @@ flutter test integration_test/app_test.dart -d windows   # end-to-end, on a desk
 
 ## 3. Publishing a release
 
-1. Update `version:` in `pubspec.yaml` (e.g. `1.1.0+2`) and commit.
+1. Set the new version and commit:
+   ```powershell
+   pwsh tools/set-version.ps1 1.2.0      # pubspec.yaml (+ build number), Cargo.toml, Cargo.lock
+   git commit -am "DigiClean 1.2.0"
+   ```
+   The version appears in Settings › About, in Settings › Apps on Windows and
+   in every package, and Windows compares it with the installed one when
+   updating, so always use this script rather than editing one file.
 2. Tag the commit and push the tag:
    ```bash
-   git tag v1.1.0
-   git push origin v1.1.0
+   git tag v1.2.0
+   git push origin v1.2.0
    ```
 3. **Release** (about 20–30 minutes):
+   * stops straight away if the tag doesn't match `pubspec.yaml` and
+     `Cargo.toml`;
    * builds Windows, macOS and Linux in parallel, each with the background
      checker (`digiclean-check`) bundled;
    * signs everything when the secrets are set;
    * **installs the Windows installer, checks it and uninstalls it** — once
      "for me only" and once "for all users" (see below); the release stops
      if anything is wrong;
+   * **updates the latest published release with it** — installs that
+     version, opens it, runs the new installer over it and checks the update
+     (same folder, one Apps entry, new version, running app closed, old files
+     gone), in both install modes;
    * creates the GitHub Release with all files, checksums and generated
      release notes.
 4. Done. The website's download buttons already point at it.
@@ -196,8 +209,16 @@ installed Windows application.
 * **Settings › Apps › Installed apps** (and Programs and Features) entry with
   name, version, publisher, size, icon and links to the project, releases
   and issues; *Uninstall* works from there.
-* Upgrades: running a newer installer updates in place (same install mode
-  and folder; a running DigiClean is closed first).
+* **Updates**: when DigiClean is already installed, the installer shows
+  *Update DigiClean 1.0.0 to 1.1.0* and skips the questions it already has
+  answers for: install mode, folder and desktop shortcut are reused (a
+  desktop shortcut the user deleted is not brought back). It closes a
+  running DigiClean and the background checker, replaces the program in
+  place and removes app assets the new version no longer ships. Settings,
+  the Recovery Bin and the daily background check are kept. Installing an
+  older version over a newer one asks first (silent installs with
+  `/SUPPRESSMSGBOXES` go ahead). Users update by downloading and running the
+  latest `DigiClean-Windows-Setup.exe`; there is no uninstall step.
 * Uninstall removes the program, the shortcuts and the optional daily
   background check. The user's settings and Recovery Bin are kept.
 
@@ -219,12 +240,16 @@ flutter build windows --release --build-name=1.1.0
 ./packaging/windows/package.ps1 -Version 1.1.0 -Url https://github.com/<owner>/<repo> -Publisher "Your Name"
 ./packaging/windows/test-installer.ps1 -Version 1.1.0              # per-user install, checks, uninstall
 ./packaging/windows/test-installer.ps1 -Version 1.1.0 -AllUsers    # from an elevated PowerShell
+./packaging/windows/test-installer.ps1 -Version 1.1.0 -Previous old\DigiClean-Windows-Setup.exe   # update test
 ```
 
 `test-installer.ps1` installs silently, verifies the program files, Start
 menu entry, desktop shortcut and the Apps entry (name, version, publisher,
-icon, size), uninstalls, and verifies everything is gone. CI runs the same
-script.
+icon, size), uninstalls, and verifies everything is gone. With `-Previous`
+it first installs that older installer and starts the app, then checks the
+update: same folder, one Apps entry, the new version on the entry and on
+`digiclean.exe`, the running app closed, and old files removed. CI runs the
+same script.
 
 ---
 

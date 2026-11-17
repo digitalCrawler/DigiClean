@@ -460,7 +460,7 @@ dependencies = [
 
 [[package]]
 name = "digiclean-cli"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -470,7 +470,7 @@ dependencies = [
 
 [[package]]
 name = "digiclean_bridge"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "digiclean_engine",
@@ -482,7 +482,7 @@ dependencies = [
 
 [[package]]
 name = "digiclean_engine"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "blake3",
  "flate2",

@@ -2,12 +2,13 @@
 #   dist/DigiClean-Windows-Setup.exe    (Inno Setup installer, if ISCC is available)
 #   dist/DigiClean-Windows-Portable.zip (unzip and run)
 #
-# Usage:  pwsh packaging/windows/package.ps1 -Version 1.2.0 [-Url https://github.com/you/digiclean] [-Publisher "Your Name"]
-# Run after `flutter build windows --release`. CI passes -Url and -Publisher
+# Usage:  pwsh packaging/windows/package.ps1 [-Version 1.2.0] [-Url https://github.com/you/digiclean] [-Publisher "Your Name"]
+# Run after `flutter build windows --release`. -Version defaults to the one in
+# pubspec.yaml and must match the build. CI passes -Url and -Publisher
 # (shown in Settings > Apps); signing uses WINDOWS_CERT_PFX_PATH and
 # WINDOWS_CERT_PASSWORD when set.
 param(
-    [Parameter(Mandatory = $true)][string]$Version,
+    [string]$Version,
     [string]$BuildDir = "build\windows\x64\runner\Release",
     [string]$Dist = "dist",
     [string]$Url = $(if ($env:DIGICLEAN_URL) { $env:DIGICLEAN_URL } else { "https://github.com" }),
@@ -19,6 +20,27 @@ Set-Location $root
 
 if (-not (Test-Path "$BuildDir\digiclean.exe")) {
     throw "No release build at $BuildDir - run 'flutter build windows --release' first."
+}
+if (-not $Version) {
+    $m = Select-String -Path "pubspec.yaml" -Pattern '^version:\s*(\d+\.\d+\.\d+)'
+    if (-not $m) { throw "No version in pubspec.yaml; pass -Version." }
+    $Version = $m.Matches[0].Groups[1].Value
+}
+# Windows compares this installer's version with the installed one, so a
+# build left over from another version would be installed under the wrong
+# number. (Flutter stamps the exe with build-name+build-number.)
+$built = ("$((Get-Item "$BuildDir\digiclean.exe").VersionInfo.ProductVersion)".Trim() -split '\+')[0]
+if ($built -ne $Version) {
+    throw "The build in $BuildDir is version $built, not $Version. Rebuild: flutter build windows --release --build-name=$Version"
+}
+Write-Host "Packaging DigiClean $Version"
+# A debug build leaves its kernel (~77 MB) in build\flutter_assets and the
+# next release build copies it along; release builds run AOT code and never
+# load it.
+$kernel = "$BuildDir\data\flutter_assets\kernel_blob.bin"
+if (Test-Path $kernel) {
+    Remove-Item $kernel -Force
+    Write-Host "Removed a leftover debug kernel from the build."
 }
 New-Item -ItemType Directory -Force $Dist | Out-Null
 

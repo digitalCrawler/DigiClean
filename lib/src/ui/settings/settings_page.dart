@@ -293,7 +293,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ListTile(
                       leading: const Icon(Icons.info_outline),
                       title: const Text('DigiClean'),
-                      subtitle: Text('Engine ${caps.engineVersion} · ${caps.os} · ${caps.cores} cores'),
+                      // The app and its engine share one version (Cargo.toml, kept
+                      // equal to pubspec.yaml by tools/set-version.ps1).
+                      subtitle: Text('Version ${caps.engineVersion} · ${caps.os} · ${caps.cores} cores'),
                     ),
                     const ListTile(
                       leading: Icon(Icons.lock_outline),

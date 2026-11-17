@@ -26,9 +26,18 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
+      - uses: actions/checkout@v4
       - id: v
         run: |
           if [ -n "${{ github.event.inputs.version }}" ]; then v="${{ github.event.inputs.version }}"; else v="${GITHUB_REF_NAME#v}"; fi
+          # The installers carry the release version, the app shows Cargo's,
+          # Android uses pubspec's: they must all agree.
+          pub=$(sed -n 's/^version: *\([0-9.]*\).*/\1/p' pubspec.yaml)
+          cargo=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          if [ "$v" != "$pub" ] || [ "$v" != "$cargo" ]; then
+            echo "::error::Releasing $v, but pubspec.yaml says $pub and Cargo.toml says $cargo. Run 'pwsh tools/set-version.ps1 $v', commit, and tag that commit."
+            exit 1
+          fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
 
   windows:
@@ -68,6 +77,18 @@ jobs:
         run: |
           ./packaging/windows/test-installer.ps1 -Version ${{ needs.version.outputs.version }}
           ./packaging/windows/test-installer.ps1 -AllUsers -Version ${{ needs.version.outputs.version }}
+      - name: Test updating the latest release (for me only, then for all users)
+        shell: pwsh
+        run: |
+          $previous = Join-Path $env:RUNNER_TEMP "previous-setup.exe"
+          try {
+            Invoke-WebRequest "${{ github.server_url }}/${{ github.repository }}/releases/latest/download/DigiClean-Windows-Setup.exe" -OutFile $previous
+          } catch {
+            Write-Host "No published release to update from yet; skipped."
+            exit 0
+          }
+          ./packaging/windows/test-installer.ps1 -Previous $previous -Version ${{ needs.version.outputs.version }}
+          ./packaging/windows/test-installer.ps1 -Previous $previous -AllUsers -Version ${{ needs.version.outputs.version }}
       - uses: actions/upload-artifact@v4
         with: { name: windows, path: dist/*, if-no-files-found: error }
 
