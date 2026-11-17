@@ -1591,10 +1591,16 @@ class SelectionSummaryDto {
   final PlatformInt64 mediaReclaimable;
   final PlatformInt64 media;
   final PlatformInt64 mediaBytes;
+
+  /// Song/video sets with every member ticked: removed completely.
+  final PlatformInt64 mediaWholeSets;
   final PlatformInt64 similarGroups;
   final PlatformInt64 similarReclaimable;
   final PlatformInt64 similar;
   final PlatformInt64 similarBytes;
+
+  /// Similar sets with every photo ticked: removed completely.
+  final PlatformInt64 similarWholeSets;
   final PlatformInt64 remainingPhotoIssues;
   final PlatformInt64 photoIssues;
   final PlatformInt64 photoIssueBytes;
@@ -1625,10 +1631,12 @@ class SelectionSummaryDto {
     required this.mediaReclaimable,
     required this.media,
     required this.mediaBytes,
+    required this.mediaWholeSets,
     required this.similarGroups,
     required this.similarReclaimable,
     required this.similar,
     required this.similarBytes,
+    required this.similarWholeSets,
     required this.remainingPhotoIssues,
     required this.photoIssues,
     required this.photoIssueBytes,
@@ -1661,10 +1669,12 @@ class SelectionSummaryDto {
       mediaReclaimable.hashCode ^
       media.hashCode ^
       mediaBytes.hashCode ^
+      mediaWholeSets.hashCode ^
       similarGroups.hashCode ^
       similarReclaimable.hashCode ^
       similar.hashCode ^
       similarBytes.hashCode ^
+      similarWholeSets.hashCode ^
       remainingPhotoIssues.hashCode ^
       photoIssues.hashCode ^
       photoIssueBytes.hashCode ^
@@ -1699,10 +1709,12 @@ class SelectionSummaryDto {
           mediaReclaimable == other.mediaReclaimable &&
           media == other.media &&
           mediaBytes == other.mediaBytes &&
+          mediaWholeSets == other.mediaWholeSets &&
           similarGroups == other.similarGroups &&
           similarReclaimable == other.similarReclaimable &&
           similar == other.similar &&
           similarBytes == other.similarBytes &&
+          similarWholeSets == other.similarWholeSets &&
           remainingPhotoIssues == other.remainingPhotoIssues &&
           photoIssues == other.photoIssues &&
           photoIssueBytes == other.photoIssueBytes &&

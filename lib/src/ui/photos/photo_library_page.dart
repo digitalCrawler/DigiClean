@@ -72,24 +72,15 @@ class _PhotoLibraryPageState extends ConsumerState<PhotoLibraryPage> {
     }
   }
 
-  /// Every similar set keeps at least one photo.
-  bool _keepsOneOfEach(Set<String> selection) =>
-      _groups.every((g) => g.members.any((m) => !selection.contains(_photos[m].id)));
-
   void _toggle(int index, bool selected) {
     final id = _photos[index].id;
-    final next = {..._selected};
-    selected ? next.add(id) : next.remove(id);
-    if (!_keepsOneOfEach(next)) {
-      showMessage(context, 'Keep at least one photo of each set');
-      return;
-    }
-    setState(
-      () => _selected
-        ..clear()
-        ..addAll(next),
-    );
+    setState(() => selected ? _selected.add(id) : _selected.remove(id));
   }
+
+  /// Every photo of the set is marked: the whole set will be deleted.
+  bool _allMarked(ImageGroupDto g) => g.members.every((m) => _selected.contains(_photos[m].id));
+
+  void _removeAll(ImageGroupDto g) => setState(() => _selected.addAll([for (final m in g.members) _photos[m].id]));
 
   void _keepBest() {
     setState(() {
@@ -104,14 +95,30 @@ class _PhotoLibraryPageState extends ConsumerState<PhotoLibraryPage> {
 
   Future<void> _delete() async {
     final count = _selected.length;
+    final wholeSets = _groups.where(_allMarked).length;
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.delete_outline),
         title: Text('Delete ${plural(count, 'photo')}?'),
-        content: const Text(
-          'Your device asks you to confirm. Deleted photos stay in Recently Deleted for 30 days, '
-          'where you can recover them.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your device asks you to confirm. Deleted photos stay in Recently Deleted for 30 days, '
+              'where you can recover them.',
+            ),
+            if (wholeSets > 0) ...[
+              const SizedBox(height: 12),
+              Text(
+                wholeSets == 1
+                    ? 'One set is marked completely and will be deleted entirely: none of its photos are kept.'
+                    : '$wholeSets sets are marked completely and will be deleted entirely: none of their photos are kept.',
+                style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
@@ -259,7 +266,21 @@ class _PhotoLibraryPageState extends ConsumerState<PhotoLibraryPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${g.members.length} similar photos', style: theme.textTheme.titleSmall),
+                    Row(
+                      children: [
+                        Expanded(child: Text('${g.members.length} similar photos', style: theme.textTheme.titleSmall)),
+                        TextButton.icon(
+                          onPressed: _allMarked(g) ? null : () => _removeAll(g),
+                          icon: const Icon(Icons.delete_sweep_outlined),
+                          label: const Text('Remove all'),
+                        ),
+                      ],
+                    ),
+                    if (_allMarked(g))
+                      Text(
+                        'All marked: none of this set is kept.',
+                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                      ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,

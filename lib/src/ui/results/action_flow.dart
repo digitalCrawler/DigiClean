@@ -172,6 +172,14 @@ class _ConfirmDialogState extends State<_ConfirmDialog> {
     final bytes = _bytes(widget.kind, widget.summary);
     final size = bytes > 0 ? ' (${formatBytes(bytes)})' : '';
     final trashName = Platform.isWindows ? 'Recycle Bin' : 'Trash';
+    // Similar sets the user chose to remove entirely ("Remove all").
+    final photos = widget.kind == ResultKind.similarPhotos;
+    final wholeSets = switch (widget.kind) {
+      ResultKind.similarPhotos => widget.summary.similarWholeSets,
+      ResultKind.similarMedia => widget.summary.mediaWholeSets,
+      _ => 0,
+    };
+    final (item, items) = photos ? ('photo', 'photos') : ('copy', 'copies');
 
     final (title, body, icon) = switch (widget.action) {
       ActionType.trash when widget.systemTrash => (
@@ -226,19 +234,27 @@ class _ConfirmDialogState extends State<_ConfirmDialog> {
                 'These files are not duplicates: this removes the only copy. Items that changed since the scan are skipped.',
                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error, fontWeight: FontWeight.w600),
               )
-            else if (widget.kind == ResultKind.similarMedia)
+            else if (widget.kind == ResultKind.similarMedia || widget.kind == ResultKind.similarPhotos) ...[
               Text(
-                'These sound the same but are different files: play them first if unsure. '
-                'At least one copy of each set stays, and files that changed since the scan are skipped.',
+                '${photos ? 'Similar is not identical: look at the photos first.' : 'These sound the same but are different files: play them first if unsure.'} '
+                '${wholeSets == 0 ? 'At least one $item of each set stays' : 'Every other set keeps at least one $item'}, '
+                'and files that changed since the scan are skipped.',
                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-              )
-            else if (widget.kind == ResultKind.similarPhotos)
-              Text(
-                'Similar is not identical: look at the photos first. At least one photo of each set stays, '
-                'and photos that changed since the scan are skipped.',
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-              )
-            else if (widget.kind == ResultKind.junk)
+              ),
+              // The user ticked every member of these sets (Remove all).
+              if (wholeSets > 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  wholeSets == 1
+                      ? 'One set is ticked completely and will be removed entirely: none of its $items are kept.'
+                      : '$wholeSets sets are ticked completely and will be removed entirely: none of their $items are kept.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ] else if (widget.kind == ResultKind.junk)
               Text(
                 'Only the ticked items are removed. Items that changed since the scan are skipped.',
                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),

@@ -6,6 +6,11 @@
 //! Selection invariant: in every duplicate group at least one present copy
 //! is *not* selected. All selection entry points enforce it, and actions
 //! re-check it against the file system before touching anything.
+//!
+//! Similar photos and similar songs/videos are different files, not copies,
+//! so the user may tick every member of a set to remove the whole set. A set
+//! with at least one unticked member keeps the usual guarantee: its ticked
+//! members are only removed while an unticked, unchanged member stays.
 
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
@@ -301,10 +306,14 @@ pub struct SelectionSummary {
     pub media_reclaimable: u64,
     pub media: u64,
     pub media_bytes: u64,
+    /// Sets with every song/video ticked: removed completely.
+    pub media_whole_sets: u64,
     pub similar_groups: u64,
     pub similar_reclaimable: u64,
     pub similar: u64,
     pub similar_bytes: u64,
+    /// Sets with every photo ticked: removed completely.
+    pub similar_whole_sets: u64,
     pub remaining_photo_issues: u64,
     pub photo_issues: u64,
     pub photo_issue_bytes: u64,
@@ -1116,26 +1125,31 @@ impl Session {
         }
     }
 
-    /// Ticks a song or video; one copy of each set stays unticked.
+    /// Ticks or unticks a song or video. Ticking every one of a set removes
+    /// the whole set.
     pub fn set_media_selected(&mut self, f: u32, selected: bool) -> Result<(), SelectionError> {
-        let Some(&g) = self.media_group_of.get(&f) else {
+        if !self.media_group_of.contains_key(&f) {
             return Err(SelectionError::Unknown);
-        };
+        }
         if self.file_state[f as usize] != ItemState::Present {
             return Err(SelectionError::NotPresent);
         }
-        if selected && !self.media_selected[f as usize] {
-            let unselected = self
-                .live_media(g)
-                .into_iter()
-                .filter(|&m| !self.media_selected[m as usize])
-                .count();
-            if unselected <= 1 {
-                return Err(SelectionError::WouldSelectAll);
-            }
-        }
         self.media_selected[f as usize] = selected;
         Ok(())
+    }
+
+    /// Song/video sets the user chose to remove completely: two or more
+    /// present members, all ticked.
+    pub fn whole_media_sets(&self) -> HashSet<u32> {
+        let sets = self.media.as_ref().map_or(0, |m| m.groups.len()) as u32;
+        (0..sets)
+            .filter(|&g| Self::all_ticked(&self.live_media(g), &self.media_selected))
+            .collect()
+    }
+
+    /// Two or more members, every one ticked.
+    fn all_ticked(live: &[u32], ticked: &[bool]) -> bool {
+        live.len() > 1 && live.iter().all(|&f| ticked[f as usize])
     }
 
     /// Ticks every copy except the best of each set; returns sets changed.
@@ -1349,26 +1363,26 @@ impl Session {
         }
     }
 
-    /// Ticks a similar photo; at least one photo of each set stays unticked.
+    /// Ticks or unticks a similar photo. Ticking every photo of a set
+    /// removes the whole set.
     pub fn set_similar_selected(&mut self, f: u32, selected: bool) -> Result<(), SelectionError> {
-        let Some(&g) = self.similar_group_of.get(&f) else {
+        if !self.similar_group_of.contains_key(&f) {
             return Err(SelectionError::Unknown);
-        };
+        }
         if self.file_state[f as usize] != ItemState::Present {
             return Err(SelectionError::NotPresent);
         }
-        if selected && !self.similar_selected[f as usize] {
-            let unselected = self
-                .live_similar(g)
-                .into_iter()
-                .filter(|&m| !self.similar_selected[m as usize])
-                .count();
-            if unselected <= 1 {
-                return Err(SelectionError::WouldSelectAll);
-            }
-        }
         self.similar_selected[f as usize] = selected;
         Ok(())
+    }
+
+    /// Similar sets the user chose to remove completely: two or more present
+    /// photos, all ticked.
+    pub fn whole_similar_sets(&self) -> HashSet<u32> {
+        let sets = self.photo.as_ref().map_or(0, |p| p.groups.len()) as u32;
+        (0..sets)
+            .filter(|&g| Self::all_ticked(&self.live_similar(g), &self.similar_selected))
+            .collect()
     }
 
     /// Ticks every similar photo except the best of each set. Returns the
@@ -2150,9 +2164,13 @@ impl Session {
         if let Some(p) = &self.photo {
             s.photos_analyzed = true;
             for g in 0..p.groups.len() as u32 {
-                if self.live_similar(g).len() > 1 {
+                let live = self.live_similar(g);
+                if live.len() > 1 {
                     s.similar_groups += 1;
                     s.similar_reclaimable += self.similar_reclaimable(g);
+                    if Self::all_ticked(&live, &self.similar_selected) {
+                        s.similar_whole_sets += 1;
+                    }
                 }
             }
             s.remaining_photo_issues = p
@@ -2172,9 +2190,13 @@ impl Session {
         if let Some(m) = &self.media {
             s.media_analyzed = true;
             for g in 0..m.groups.len() as u32 {
-                if self.live_media(g).len() > 1 {
+                let live = self.live_media(g);
+                if live.len() > 1 {
                     s.media_groups += 1;
                     s.media_reclaimable += self.media_reclaimable(g);
+                    if Self::all_ticked(&live, &self.media_selected) {
+                        s.media_whole_sets += 1;
+                    }
                 }
             }
         }

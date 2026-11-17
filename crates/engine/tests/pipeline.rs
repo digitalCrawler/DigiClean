@@ -1332,9 +1332,12 @@ fn similar_photos_keep_the_best_shot() {
     );
     assert_eq!(
         session.set_similar_selected(group.items[1].id, true),
-        Err(SelectionError::WouldSelectAll)
+        Ok(()),
+        "every photo of a set can be ticked, to remove the whole set"
     );
+    assert_eq!(session.summary().similar_whole_sets, 1);
     session.clear_selection(GroupKind::SimilarPhotos);
+    assert_eq!(session.summary().similar_whole_sets, 0);
     assert_eq!(session.select_all_but_best(&GroupFilter::default()), 1);
     assert_eq!(session.summary().similar, 1);
 
@@ -1375,6 +1378,83 @@ fn similar_photos_keep_the_best_shot() {
     assert!(root.join("Camera/IMG_0001.jpg").exists());
     assert!(!root.join("WhatsApp/IMG-WA0001.jpg").exists());
     assert_eq!(session.summary().similar_groups, 0);
+}
+
+#[test]
+fn a_fully_ticked_similar_set_is_removed_completely() {
+    use digiclean_engine::photos;
+    use std::io::Write;
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("data");
+    // Two similar sets: each a photo and a smaller re-save of it.
+    for (seed, name) in [(1, "Beach"), (9, "Forest")] {
+        let photo = scene(1200, 900, seed);
+        save_jpeg(&photo, &root.join(format!("Camera/{name}.jpg")));
+        let small = image::imageops::resize(&photo, 480, 360, image::imageops::FilterType::Triangle);
+        save_jpeg(&small, &root.join(format!("WhatsApp/{name}-small.jpg")));
+    }
+    let mut session = scan(&config(&root));
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(2)
+        .build()
+        .unwrap();
+    let (features, failed) = photos::analyze_many(
+        &session.photo_candidates(),
+        None,
+        &ScanControl::new(),
+        &pool,
+        &|| {},
+    )
+    .unwrap();
+    session.set_photo_analysis(features, failed);
+    let sets = session
+        .similar_groups(0, 10, SortKey::Name, false, &GroupFilter::default())
+        .items;
+    assert_eq!(sets.len(), 2);
+    let set_of = |name: &str| {
+        sets.iter()
+            .find(|s| s.items.iter().any(|i| i.path.ends_with(format!("Camera/{name}.jpg"))))
+            .unwrap()
+            .clone()
+    };
+    let (beach, forest) = (set_of("Beach"), set_of("Forest"));
+
+    // Beach: every photo ticked, so none has to stay.
+    for item in &beach.items {
+        session.set_similar_selected(item.id, true).unwrap();
+    }
+    // Forest: only the small one ticked, and the photo meant to stay changes
+    // after the scan, so the small one must not be removed either.
+    let forest_small = forest.items.iter().find(|i| !i.best).unwrap();
+    session.set_similar_selected(forest_small.id, true).unwrap();
+    let summary = session.summary();
+    assert_eq!((summary.similar, summary.similar_whole_sets), (3, 1));
+    fs::OpenOptions::new()
+        .append(true)
+        .open(root.join("Camera/Forest.jpg"))
+        .unwrap()
+        .write_all(b"edited")
+        .unwrap();
+
+    let bin = RecoveryBin::new(vec![dir.path().join("bin")]).unwrap();
+    let report = actions::execute(
+        &mut session,
+        &request(ActionKind::RecoveryBin, ActionTarget::SimilarPhotos),
+        Some(&bin),
+        &ScanControl::new(),
+        &|_, _| {},
+    )
+    .unwrap();
+    assert_eq!(report.succeeded, 2, "both Beach photos");
+    assert!(!root.join("Camera/Beach.jpg").exists());
+    assert!(!root.join("WhatsApp/Beach-small.jpg").exists());
+    assert!(root.join("Camera/Forest.jpg").exists());
+    assert!(
+        root.join("WhatsApp/Forest-small.jpg").exists(),
+        "kept: no unchanged Forest photo would remain"
+    );
+    let summary = session.summary();
+    assert_eq!((summary.similar_groups, summary.similar_whole_sets), (1, 0));
 }
 
 #[test]
@@ -1500,8 +1580,10 @@ fn similar_songs_keep_the_best_copy() {
     assert_eq!(session.set_media_selected(group.items[0].id, true), Ok(()));
     assert_eq!(
         session.set_media_selected(group.items[1].id, true),
-        Err(SelectionError::WouldSelectAll)
+        Ok(()),
+        "every copy of a set can be ticked, to remove the whole set"
     );
+    assert_eq!(session.summary().media_whole_sets, 1);
     session.clear_selection(GroupKind::SimilarMedia);
     assert_eq!(
         session.select_all_but_best_media(&GroupFilter::default()),

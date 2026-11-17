@@ -657,15 +657,21 @@ impl<'a> Executor<'a> {
         Ok(())
     }
 
-    /// Removes ticked similar photos while an unticked, unchanged photo of
-    /// the same set stays.
     /// Removes ticked similar photos (`media` false) or songs and videos
-    /// while an unticked, unchanged member of the same set stays.
+    /// while an unticked, unchanged member of the same set stays. A set the
+    /// user ticked completely is removed completely.
     fn run_similar(&mut self, media: bool, progress: ProgressFn<'_>) -> Result<()> {
         let selected = if media {
             self.session.selected_media()
         } else {
             self.session.selected_similar()
+        };
+        // Decided up front: once some photos of a whole set are gone, the
+        // rest must still go, though fewer than two remain.
+        let whole_sets = if media {
+            self.session.whole_media_sets()
+        } else {
+            self.session.whole_similar_sets()
         };
         let total = selected.len() as u64;
         progress(0, total);
@@ -678,7 +684,8 @@ impl<'a> Executor<'a> {
             } else {
                 self.session.similar_group_of(f)
             };
-            let keeper = group.and_then(|g| {
+            let whole_set = group.is_some_and(|g| whole_sets.contains(&g));
+            let keeper = group.filter(|_| !whole_set).and_then(|g| {
                 let members = if media {
                     self.session.media_members(g)
                 } else {
@@ -696,7 +703,7 @@ impl<'a> Executor<'a> {
                     }
                 })
             });
-            if keeper.is_none() {
+            if !whole_set && keeper.is_none() {
                 self.report.issue(
                     &path,
                     "skipped: no unchanged copy of this set would remain",

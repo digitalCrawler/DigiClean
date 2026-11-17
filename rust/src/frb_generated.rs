@@ -6199,10 +6199,12 @@ impl SseDecode for crate::api::types::SelectionSummaryDto {
         let mut var_mediaReclaimable = <i64>::sse_decode(deserializer);
         let mut var_media = <i64>::sse_decode(deserializer);
         let mut var_mediaBytes = <i64>::sse_decode(deserializer);
+        let mut var_mediaWholeSets = <i64>::sse_decode(deserializer);
         let mut var_similarGroups = <i64>::sse_decode(deserializer);
         let mut var_similarReclaimable = <i64>::sse_decode(deserializer);
         let mut var_similar = <i64>::sse_decode(deserializer);
         let mut var_similarBytes = <i64>::sse_decode(deserializer);
+        let mut var_similarWholeSets = <i64>::sse_decode(deserializer);
         let mut var_remainingPhotoIssues = <i64>::sse_decode(deserializer);
         let mut var_photoIssues = <i64>::sse_decode(deserializer);
         let mut var_photoIssueBytes = <i64>::sse_decode(deserializer);
@@ -6232,10 +6234,12 @@ impl SseDecode for crate::api::types::SelectionSummaryDto {
             media_reclaimable: var_mediaReclaimable,
             media: var_media,
             media_bytes: var_mediaBytes,
+            media_whole_sets: var_mediaWholeSets,
             similar_groups: var_similarGroups,
             similar_reclaimable: var_similarReclaimable,
             similar: var_similar,
             similar_bytes: var_similarBytes,
+            similar_whole_sets: var_similarWholeSets,
             remaining_photo_issues: var_remainingPhotoIssues,
             photo_issues: var_photoIssues,
             photo_issue_bytes: var_photoIssueBytes,
@@ -8228,10 +8232,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::SelectionSummaryDto {
             self.media_reclaimable.into_into_dart().into_dart(),
             self.media.into_into_dart().into_dart(),
             self.media_bytes.into_into_dart().into_dart(),
+            self.media_whole_sets.into_into_dart().into_dart(),
             self.similar_groups.into_into_dart().into_dart(),
             self.similar_reclaimable.into_into_dart().into_dart(),
             self.similar.into_into_dart().into_dart(),
             self.similar_bytes.into_into_dart().into_dart(),
+            self.similar_whole_sets.into_into_dart().into_dart(),
             self.remaining_photo_issues.into_into_dart().into_dart(),
             self.photo_issues.into_into_dart().into_dart(),
             self.photo_issue_bytes.into_into_dart().into_dart(),
@@ -9780,10 +9786,12 @@ impl SseEncode for crate::api::types::SelectionSummaryDto {
         <i64>::sse_encode(self.media_reclaimable, serializer);
         <i64>::sse_encode(self.media, serializer);
         <i64>::sse_encode(self.media_bytes, serializer);
+        <i64>::sse_encode(self.media_whole_sets, serializer);
         <i64>::sse_encode(self.similar_groups, serializer);
         <i64>::sse_encode(self.similar_reclaimable, serializer);
         <i64>::sse_encode(self.similar, serializer);
         <i64>::sse_encode(self.similar_bytes, serializer);
+        <i64>::sse_encode(self.similar_whole_sets, serializer);
         <i64>::sse_encode(self.remaining_photo_issues, serializer);
         <i64>::sse_encode(self.photo_issues, serializer);
         <i64>::sse_encode(self.photo_issue_bytes, serializer);

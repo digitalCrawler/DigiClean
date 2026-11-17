@@ -572,7 +572,83 @@ class _FolderContentsState extends State<FolderContents> {
   }
 }
 
-// ── Similar photos ──────────────────────────────────────────────────────
+// ── Similar sets: photos, songs and videos ──────────────────────────────
+
+/// Title of a similar set with its two set-wide choices: keep only the best,
+/// or remove every item (similar items are different files, so removing the
+/// whole set is allowed). Warns while the whole set is marked.
+class _SetHeader extends StatelessWidget {
+  const _SetHeader({
+    required this.title,
+    required this.subtitle,
+    required this.allMarked,
+    required this.wholeSetWarning,
+    required this.onKeepBest,
+    required this.onRemoveAll,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool allMarked;
+  final String wholeSetWarning;
+  final VoidCallback onKeepBest;
+  final VoidCallback onRemoveAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final ds = context.ds;
+    final error = Theme.of(context).colorScheme.error;
+    return LayoutBuilder(
+      builder: (context, box) {
+        final actions = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            FilledButton.tonalIcon(
+              onPressed: onKeepBest,
+              icon: const Icon(Icons.star_outline),
+              label: const Text('Keep only the best'),
+            ),
+            OutlinedButton.icon(
+              key: const ValueKey('remove-whole-set'),
+              onPressed: allMarked ? null : onRemoveAll,
+              icon: const Icon(Icons.delete_sweep_outlined),
+              label: const Text('Remove all'),
+            ),
+          ],
+        );
+        // Beside the title when there is room, underneath on phones.
+        final wide = box.maxWidth >= 640;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _Title(title: title, subtitle: subtitle, trailing: wide ? actions : null),
+            if (!wide) ...[const SizedBox(height: 12), actions],
+            if (allMarked) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(border: Border.all(color: error, width: 2)),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: error),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        wholeSetWarning,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: ds.ink),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
 
 class SimilarPhotosDetail extends ConsumerWidget {
   const SimilarPhotosDetail({super.key, required this.groupIndex, required this.apply});
@@ -592,13 +668,17 @@ class SimilarPhotosDetail extends ConsumerWidget {
     final photos = group.photos;
     final locations = GroupLocations.of([for (final p in photos) p.parent]);
 
-    void keepBest() => apply((r) {
+    void mark(bool Function(PhotoDto p) remove) => apply((r) {
       late SelectionSummaryDto summary;
       for (final p in photos) {
-        summary = r.setSimilarSelected(fileId: p.id, selected: !p.best);
+        summary = r.setSimilarSelected(fileId: p.id, selected: remove(p));
       }
       return summary;
     });
+    final allMarked = photos.every((p) => p.selected);
+    final freed = allMarked
+        ? 'All ${formatBytes(photos.fold(0, (sum, p) => sum + p.size))} will be freed.'
+        : '${formatBytes(group.reclaimable)} can be freed.';
 
     return LayoutBuilder(
       builder: (context, box) {
@@ -607,16 +687,17 @@ class SimilarPhotosDetail extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
             children: [
-              _Title(
+              _SetHeader(
                 title: '${photos.length} similar photos',
                 subtitle:
                     'They look alike: resized, re-saved or taken in a burst. The sharpest, largest one is marked best. '
-                    '${formatBytes(group!.reclaimable)} can be freed.',
-                trailing: FilledButton.tonalIcon(
-                  onPressed: keepBest,
-                  icon: const Icon(Icons.star_outline),
-                  label: const Text('Keep only the best'),
-                ),
+                    '$freed',
+                allMarked: allMarked,
+                wholeSetWarning:
+                    'All ${photos.length} photos are marked to remove, so none of this set is kept. '
+                    'Choose Keep on a photo to keep it.',
+                onKeepBest: () => mark((p) => !p.best),
+                onRemoveAll: () => mark((_) => true),
               ),
               const SizedBox(height: 16),
               _Grid(
@@ -762,28 +843,32 @@ class MediaGroupDetail extends ConsumerWidget {
     final theme = Theme.of(context);
     final ds = context.ds;
 
-    void keepBest() => apply((r) {
+    void mark(bool Function(MediaDto m) remove) => apply((r) {
       late SelectionSummaryDto summary;
       for (final m in items) {
-        summary = r.setMediaSelected(fileId: m.id, selected: !m.best);
+        summary = r.setMediaSelected(fileId: m.id, selected: remove(m));
       }
       return summary;
     });
+    final allMarked = items.every((m) => m.selected);
+    final what = video ? 'video' : 'song';
+    final freed = allMarked
+        ? 'All ${formatBytes(items.fold(0, (sum, m) => sum + m.size))} will be freed.'
+        : '${formatBytes(group.reclaimable)} can be freed.';
 
     return _DetailList(
       builder: (previewHeight) => [
         FilePreview(path: best.path, height: previewHeight),
         const SizedBox(height: 16),
-        _Title(
-          title: '${items.length} copies of the same ${video ? 'video' : 'song'}',
-          subtitle:
-              'They sound the same, in another format or quality. The best one is marked. '
-              '${formatBytes(group!.reclaimable)} can be freed.',
-          trailing: FilledButton.tonalIcon(
-            onPressed: keepBest,
-            icon: const Icon(Icons.star_outline),
-            label: const Text('Keep only the best'),
-          ),
+        _SetHeader(
+          title: '${items.length} copies of the same $what',
+          subtitle: 'They sound the same, in another format or quality. The best one is marked. $freed',
+          allMarked: allMarked,
+          wholeSetWarning:
+              'All ${items.length} copies are marked to remove, so this $what is not kept anywhere. '
+              'Choose Keep on a copy to keep it.',
+          onKeepBest: () => mark((m) => !m.best),
+          onRemoveAll: () => mark((_) => true),
         ),
         const _SectionLabel('Copies — choose what to keep'),
         for (var i = 0; i < items.length; i++)

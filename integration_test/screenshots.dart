@@ -334,6 +334,14 @@ void main() {
       tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first).clearSnackBars();
       await waitFor(() => true);
       await capture('${label}_17_similar', key);
+      if (label == 'desktop') {
+        // A whole set marked with "Remove all", then back to keeping the best.
+        await tester.tap(find.byKey(const ValueKey('remove-whole-set')));
+        await waitFor(() => find.textContaining('none of this set is kept').evaluate().isNotEmpty);
+        await capture('${label}_17b_similar_remove_all', key);
+        await tester.tap(find.text('Keep only the best'));
+        await waitFor(() => find.textContaining('none of this set is kept').evaluate().isEmpty);
+      }
       await openSection('photoIssues');
       await waitFor(() => find.textContaining('Screenshot 2024').evaluate().isNotEmpty);
       await capture('${label}_18_review', key);

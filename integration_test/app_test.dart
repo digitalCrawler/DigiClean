@@ -679,6 +679,66 @@ void main() {
     expect(File(p.join(photos.path, 'Music', 'Other.wav')).existsSync(), isTrue);
   });
 
+  testWidgets('photos: "Remove all" removes a whole similar set', (tester) async {
+    final photos = Directory.systemTemp.createTempSync('digiclean_burst_');
+    addTearDown(() => photos.deleteSync(recursive: true));
+    final shot = p.join(photos.path, 'Burst', 'IMG_0101.png');
+    final copy = p.join(photos.path, 'Saved', 'IMG_0101-small.png');
+    await tester.runAsync(() async {
+      await writeScene(shot, 1, 1200, 900);
+      await writeScene(copy, 1, 480, 360);
+      await writeScene(p.join(photos.path, 'Burst', 'IMG_0102.png'), 2, 1200, 900);
+    });
+    SharedPreferences.setMockInitialValues({'settings.v1': '{"onboardingDone": true, "deleteAction": "recoveryBin"}'});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        appPathsProvider.overrideWithValue(AppPaths.forTesting(bin.path)),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(locationsProvider.notifier).add(photos.path);
+    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const DigiCleanApp()));
+    await tester.pumpAndSettle();
+
+    Future<void> waitFor(bool Function() condition) async {
+      final end = DateTime.now().add(const Duration(seconds: 60));
+      while (!condition()) {
+        if (DateTime.now().isAfter(end)) fail('timed out');
+        await tester.pump(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.text('Scan 1 location'));
+    await waitFor(() => container.read(resultsProvider).hasResults);
+    await tester.tap(section('similarPhotos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Analyse media'));
+    await waitFor(() => container.read(resultsProvider).summary?.photosAnalyzed ?? false);
+    expect(container.read(resultsProvider).summary!.similarGroups, 1);
+    expect(find.textContaining('2 similar photos'), findsWidgets);
+
+    // Both photos marked: the pane warns that nothing of the set is kept.
+    await tester.tap(find.byKey(const ValueKey('remove-whole-set')));
+    await waitFor(() => find.text('2 selected').evaluate().isNotEmpty);
+    expect(container.read(resultsProvider).summary!.similarWholeSets, 1);
+    expect(find.textContaining('none of this set is kept'), findsOneWidget);
+    expect(find.text('ALL MARKED'), findsOneWidget);
+
+    tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first).clearSnackBars();
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Remove'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('removed entirely: none of its photos are kept'), findsOneWidget);
+    await tester.tap(find.text('Move to bin'));
+    await waitFor(() => !File(shot).existsSync() && !File(copy).existsSync());
+    expect(container.read(resultsProvider).summary!.similarGroups, 0);
+    expect(File(p.join(photos.path, 'Burst', 'IMG_0102.png')).existsSync(), isTrue, reason: 'not in the set');
+  });
+
   testWidgets('keep it clean: new duplicate downloads and scheduled rescans', (tester) async {
     final downloads = Directory.systemTemp.createTempSync('digiclean_dl_');
     addTearDown(() => downloads.deleteSync(recursive: true));

@@ -4004,7 +4004,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   SelectionSummaryDto dco_decode_selection_summary_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 32) throw Exception('unexpected arr length: expect 32 but see ${arr.length}');
+    if (arr.length != 34) throw Exception('unexpected arr length: expect 34 but see ${arr.length}');
     return SelectionSummaryDto(
       files: dco_decode_i_64(arr[0]),
       fileBytes: dco_decode_i_64(arr[1]),
@@ -4027,17 +4027,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       mediaReclaimable: dco_decode_i_64(arr[18]),
       media: dco_decode_i_64(arr[19]),
       mediaBytes: dco_decode_i_64(arr[20]),
-      similarGroups: dco_decode_i_64(arr[21]),
-      similarReclaimable: dco_decode_i_64(arr[22]),
-      similar: dco_decode_i_64(arr[23]),
-      similarBytes: dco_decode_i_64(arr[24]),
-      remainingPhotoIssues: dco_decode_i_64(arr[25]),
-      photoIssues: dco_decode_i_64(arr[26]),
-      photoIssueBytes: dco_decode_i_64(arr[27]),
-      junk: dco_decode_i_64(arr[28]),
-      junkBytes: dco_decode_i_64(arr[29]),
-      remainingJunk: dco_decode_i_64(arr[30]),
-      remainingJunkBytes: dco_decode_i_64(arr[31]),
+      mediaWholeSets: dco_decode_i_64(arr[21]),
+      similarGroups: dco_decode_i_64(arr[22]),
+      similarReclaimable: dco_decode_i_64(arr[23]),
+      similar: dco_decode_i_64(arr[24]),
+      similarBytes: dco_decode_i_64(arr[25]),
+      similarWholeSets: dco_decode_i_64(arr[26]),
+      remainingPhotoIssues: dco_decode_i_64(arr[27]),
+      photoIssues: dco_decode_i_64(arr[28]),
+      photoIssueBytes: dco_decode_i_64(arr[29]),
+      junk: dco_decode_i_64(arr[30]),
+      junkBytes: dco_decode_i_64(arr[31]),
+      remainingJunk: dco_decode_i_64(arr[32]),
+      remainingJunkBytes: dco_decode_i_64(arr[33]),
     );
   }
 
@@ -5765,10 +5767,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_mediaReclaimable = sse_decode_i_64(deserializer);
     var var_media = sse_decode_i_64(deserializer);
     var var_mediaBytes = sse_decode_i_64(deserializer);
+    var var_mediaWholeSets = sse_decode_i_64(deserializer);
     var var_similarGroups = sse_decode_i_64(deserializer);
     var var_similarReclaimable = sse_decode_i_64(deserializer);
     var var_similar = sse_decode_i_64(deserializer);
     var var_similarBytes = sse_decode_i_64(deserializer);
+    var var_similarWholeSets = sse_decode_i_64(deserializer);
     var var_remainingPhotoIssues = sse_decode_i_64(deserializer);
     var var_photoIssues = sse_decode_i_64(deserializer);
     var var_photoIssueBytes = sse_decode_i_64(deserializer);
@@ -5798,10 +5802,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       mediaReclaimable: var_mediaReclaimable,
       media: var_media,
       mediaBytes: var_mediaBytes,
+      mediaWholeSets: var_mediaWholeSets,
       similarGroups: var_similarGroups,
       similarReclaimable: var_similarReclaimable,
       similar: var_similar,
       similarBytes: var_similarBytes,
+      similarWholeSets: var_similarWholeSets,
       remainingPhotoIssues: var_remainingPhotoIssues,
       photoIssues: var_photoIssues,
       photoIssueBytes: var_photoIssueBytes,
@@ -7173,10 +7179,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_64(self.mediaReclaimable, serializer);
     sse_encode_i_64(self.media, serializer);
     sse_encode_i_64(self.mediaBytes, serializer);
+    sse_encode_i_64(self.mediaWholeSets, serializer);
     sse_encode_i_64(self.similarGroups, serializer);
     sse_encode_i_64(self.similarReclaimable, serializer);
     sse_encode_i_64(self.similar, serializer);
     sse_encode_i_64(self.similarBytes, serializer);
+    sse_encode_i_64(self.similarWholeSets, serializer);
     sse_encode_i_64(self.remainingPhotoIssues, serializer);
     sse_encode_i_64(self.photoIssues, serializer);
     sse_encode_i_64(self.photoIssueBytes, serializer);

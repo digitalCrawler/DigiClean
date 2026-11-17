@@ -335,10 +335,14 @@ pub struct SelectionSummaryDto {
     pub media_reclaimable: i64,
     pub media: i64,
     pub media_bytes: i64,
+    /// Song/video sets with every member ticked: removed completely.
+    pub media_whole_sets: i64,
     pub similar_groups: i64,
     pub similar_reclaimable: i64,
     pub similar: i64,
     pub similar_bytes: i64,
+    /// Similar sets with every photo ticked: removed completely.
+    pub similar_whole_sets: i64,
     pub remaining_photo_issues: i64,
     pub photo_issues: i64,
     pub photo_issue_bytes: i64,
