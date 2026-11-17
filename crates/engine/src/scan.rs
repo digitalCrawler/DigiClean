@@ -400,7 +400,19 @@ impl<'a> Pipeline<'a> {
         stats.bytes_hashed += analysis.bytes_hashed;
         self.store_cache(&analysis.new_cache_entries);
 
-        // ── 7. Assemble ────────────────────────────────────────────────
+        // ── 7. Build folders ───────────────────────────────────────────
+        self.progress.set_phase(ScanPhase::BuildFolders, 0, 0);
+        let build_dirs = crate::build_folders::detect(
+            &out.dirs,
+            &out.files,
+            &out.skipped_build_candidates,
+            self.control,
+            &self.hash_pool,
+        )?;
+        stats.build_folders = build_dirs.len() as u64;
+        stats.build_bytes = build_dirs.iter().map(|b| b.bytes).sum();
+
+        // ── 8. Assemble ────────────────────────────────────────────────
         self.progress.set_phase(ScanPhase::Finalizing, 0, 0);
         let mut file_groups: Vec<FileGroup> = groups
             .into_iter()
@@ -469,6 +481,7 @@ impl<'a> Pipeline<'a> {
             dirs,
             files,
             junk,
+            skipped_build_candidates: _,
         } = out;
         Ok(ScanResult {
             config: cfg.clone(),
@@ -480,6 +493,7 @@ impl<'a> Pipeline<'a> {
             empty_folders: analysis.empty,
             large_files: large,
             junk,
+            build_dirs,
             stats,
             issues: self.issues.into_samples(),
         })

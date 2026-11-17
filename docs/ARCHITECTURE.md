@@ -34,6 +34,7 @@
 │ scan     size → partial hash → full hash → verify → folders pipeline   │
 │ hashing  BLAKE3 / SHA-256 streaming with per-thread buffers            │
 │ folders  Merkle signatures for duplicate folders, empty folders        │
+│ build_folders  node_modules, target… recognised by their project       │
 │ cache    redb hash cache keyed by path, validated by size + mtime      │
 │ session  results, paging, sorting, filtering, selection invariants     │
 │ actions  trash / recovery bin / delete / move / hard-link executor     │
@@ -154,6 +155,29 @@ not. `desktop.ini` and `.localized` are never junk. Junk entries reference
 their file record when there is one, so removing junk updates folder
 comparisons too. Removal re-checks size and mtime (or that a link is still
 broken) and only ever removes the link itself.
+
+Build folders (`build_folders.rs`) are what a project's tools recreate:
+`node_modules`, Rust and Maven `target`, Gradle and Flutter `build`,
+`.dart_tool`, `.gradle`, Python virtual environments, `Pods`, Unity
+`Library` and about twenty more. A rule table matches a folder's name *and*
+evidence from its project: the project file next to it (`package.json`,
+`Cargo.toml`, `*.csproj`), a file inside (`pyvenv.cfg`, a valid
+`CACHEDIR.TAG`) or both. CMake build trees and tagged caches are recognised
+by the file inside whatever their name. A folder that holds a project file
+or a `.git` of its own is never a build folder. Only top-most folders are
+listed, never a scan root, and never a link. The walk records folders it
+does not enter when their name fits a rule: hidden ones (`.gradle`, `.venv`…)
+and those matching an exclusion pattern (the app skips `**/node_modules` by
+default, which keeps package files out of the duplicates). Their files never
+join the scan, but the folders are listed. Folders excluded by path,
+protected and system folders are never looked at. Every build folder is
+measured on its own (files, bytes, newest file), in parallel. "Last used" is the newest file
+in the folder or the rest of its project. Removal checks again that the rule
+still matches (the project file is still there) and that the folder measures
+exactly as scanned, so a folder rebuilt since the scan is skipped. Folders
+the walk entered are marked removed with everything inside, so duplicates
+inside them disappear too. Recommendations offer the build folders of
+projects unused for 90 days.
 
 Reports (`report.rs`) render what the results screen shows, including the
 selection: CSV (one row per item, Excel-friendly, formula-safe), JSON and a

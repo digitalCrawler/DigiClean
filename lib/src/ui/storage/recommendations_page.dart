@@ -45,6 +45,14 @@ final _recommendationsProvider = FutureProvider.autoDispose<List<RecommendationD
     why: 'Folders with nothing inside.',
     list: ResultKind.emptyFolders,
   ),
+  RecommendationKind.buildFolders => (
+    icon: Icons.construction_outlined,
+    title: 'Build folders of inactive projects',
+    why:
+        'node_modules, target, build and the like in projects untouched for 3 months. '
+        'The project’s tools recreate them on the next build.',
+    list: ResultKind.buildFolders,
+  ),
 };
 
 /// Low-risk cleanups in one reviewed checklist.
@@ -83,7 +91,9 @@ class _RecommendationsPageState extends ConsumerState<RecommendationsPage> {
           ? const EmptyState(
               icon: Icons.check_circle_outline,
               title: 'Nothing to recommend',
-              message: 'No caches, leftovers, duplicate downloads or empty folders were found in the scanned folders.',
+              message:
+                  'No caches, leftovers, duplicate downloads, unused build folders or empty folders '
+                  'were found in the scanned folders.',
             )
           : Center(
               child: ConstrainedBox(

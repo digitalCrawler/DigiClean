@@ -223,6 +223,13 @@ class FindingsCard extends ConsumerWidget {
         kind: ResultKind.junk,
       ),
       (
+        icon: Icons.construction_outlined,
+        label: 'Build folders',
+        value: formatBytes(s?.remainingBuildBytes ?? stats.buildBytes),
+        detail: plural(s?.remainingBuildFolders ?? stats.buildFolders, 'folder'),
+        kind: ResultKind.buildFolders,
+      ),
+      (
         icon: Icons.photo_size_select_large,
         label: 'Large files',
         value: formatCount(s?.remainingLargeFiles ?? stats.largeFiles),

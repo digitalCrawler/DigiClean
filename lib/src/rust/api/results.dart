@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `algorithm_of`, `busy`, `filter`, `from_hex`, `from_result`, `from_session`, `junk_filter`, `read_ui`, `to_hex`, `write_ui`
+// These functions are ignored because they are not marked as `pub`: `algorithm_of`, `busy`, `filter`, `from_hex`, `from_result`, `from_session`, `junk_filter`, `list_filter`, `read_ui`, `to_hex`, `write_ui`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ScanResults>>
 abstract class ScanResults implements RustOpaqueInterface {
@@ -26,6 +26,10 @@ abstract class ScanResults implements RustOpaqueInterface {
   /// Applies an automatic rule to all matching groups; returns how many
   /// groups were changed.
   Future<PlatformInt64> applyRule({required ResultKind kind, required SelectionRuleDto rule});
+
+  /// Folders a project's tools recreate, such as `node_modules` (filters:
+  /// project last used before `modified_before_ms`, search, minimum size).
+  Future<BuildFolderPage> buildFolders({required GroupQuery query});
 
   void cancelAction();
 
@@ -94,6 +98,11 @@ abstract class ScanResults implements RustOpaqueInterface {
   /// The biggest files of the scan (filters: category, search, minimum size).
   Future<LargeFilePage> largeFiles({required GroupQuery query});
 
+  /// How many items a list of single items (large files, old files,
+  /// photos to review, junk, empty folders) shows for `query`, and how
+  /// many of those are ticked. All zero for groups.
+  Future<ListSelectionDto> listSelection({required ResultKind kind, required GroupQuery query});
+
   /// Reopens results written by [`ScanResults::save_snapshot`]. Fails when
   /// the file is missing, damaged or from another app version.
   static Future<ScanResults> loadSnapshot({required String path}) =>
@@ -137,11 +146,9 @@ abstract class ScanResults implements RustOpaqueInterface {
   /// Ticks every copy except the best of each set.
   Future<SelectionSummaryDto> selectAllButBestMedia({String? search});
 
-  Future<SelectionSummaryDto> selectAllEmptyFolders({String? search});
-
   /// Replaces the selection of the affected lists with what the chosen
   /// recommendations remove. Returns the lists to act on, in a safe order
-  /// (duplicates, then junk, then empty folders).
+  /// (duplicates, junk, build folders, then empty folders).
   Future<List<ResultKind>> selectRecommendations({
     required List<RecommendationKind> kinds,
     required List<String> downloads,
@@ -152,6 +159,8 @@ abstract class ScanResults implements RustOpaqueInterface {
   Future<SelectionSummaryDto> selectSafeJunk({String? search, JunkKind? kind});
 
   SelectionSummaryDto selectionSummary();
+
+  SelectionSummaryDto setBuildFolderSelected({required int buildId, required bool selected});
 
   /// Fails with a readable message when the change would leave a group
   /// without a kept copy.
@@ -166,6 +175,14 @@ abstract class ScanResults implements RustOpaqueInterface {
   SelectionSummaryDto setJunkSelected({required int junkId, required bool selected});
 
   SelectionSummaryDto setLargeFileSelected({required int fileId, required bool selected});
+
+  /// Ticks or unticks everything a list of single items shows for
+  /// `query`. Groups (duplicates, similar sets) are left alone.
+  Future<SelectionSummaryDto> setListSelected({
+    required ResultKind kind,
+    required GroupQuery query,
+    required bool selected,
+  });
 
   SelectionSummaryDto setMediaSelected({required int fileId, required bool selected});
 

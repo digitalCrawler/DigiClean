@@ -11,7 +11,8 @@ use std::path::Path;
 
 use crate::junk::JunkKind;
 use crate::session::{
-    FileGroupView, FileItem, FolderGroupView, FolderItem, GroupFilter, JunkItem, Session, SortKey,
+    BuildItem, FileGroupView, FileItem, FolderGroupView, FolderItem, GroupFilter, JunkItem,
+    Session, SortKey,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,6 +51,7 @@ struct Contents {
     empty: Vec<FolderItem>,
     large: Vec<FileItem>,
     junk: Vec<JunkItem>,
+    build: Vec<BuildItem>,
 }
 
 fn contents(session: &Session) -> Contents {
@@ -68,6 +70,9 @@ fn contents(session: &Session) -> Contents {
             .large_files(0, usize::MAX, SortKey::Size, true, &all)
             .items,
         junk: session.junk(0, usize::MAX, SortKey::Size, true, &all).items,
+        build: session
+            .build_folders(0, usize::MAX, SortKey::Size, true, &all)
+            .items,
     }
 }
 
@@ -162,6 +167,18 @@ fn csv(c: &Contents, clock: ReportClock) -> String {
             f.selected,
         );
     }
+    // "modified" is when the project was last used.
+    for b in &c.build {
+        row(
+            "build_folder",
+            None,
+            &b.path,
+            b.bytes,
+            b.last_used_ns,
+            "",
+            b.selected,
+        );
+    }
     out
 }
 
@@ -210,6 +227,8 @@ fn json(session: &Session, c: &Contents, clock: ReportClock) -> String {
             "large_files": summary.remaining_large_files,
             "junk_items": summary.remaining_junk,
             "junk_bytes": summary.remaining_junk_bytes,
+            "build_folders": summary.remaining_build_folders,
+            "build_folder_bytes": summary.remaining_build_bytes,
             "selected_files": summary.files,
             "selected_file_bytes": summary.file_bytes,
             "selected_folders": summary.folders,
@@ -254,6 +273,16 @@ fn json(session: &Session, c: &Contents, clock: ReportClock) -> String {
             "size": f.size,
             "modified": time(f.modified_ns),
             "selected": f.selected,
+        })).collect::<Vec<_>>(),
+        "build_folders": c.build.iter().map(|b| json!({
+            "path": b.path.to_string_lossy(),
+            "project": b.project.to_string_lossy(),
+            "tool": b.tool,
+            "rebuild": b.rebuild,
+            "size": b.bytes,
+            "files": b.files,
+            "last_used": time(b.last_used_ns),
+            "selected": b.selected,
         })).collect::<Vec<_>>(),
     });
     serde_json::to_string_pretty(&value).unwrap_or_default()
@@ -317,7 +346,7 @@ fn html(session: &Session, c: &Contents, clock: ReportClock) -> String {
         ("Duplicate folders", human(s.folder_wasted)),
         (
             "Selected to remove",
-            human(s.file_bytes + s.folder_bytes + s.large_file_bytes),
+            human(s.file_bytes + s.folder_bytes + s.large_file_bytes + s.build_bytes),
         ),
     ] {
         let _ = write!(
@@ -436,6 +465,33 @@ fn html(session: &Session, c: &Contents, clock: ReportClock) -> String {
         out.push_str("</table></div></div>");
         more(&mut out, c.junk.len());
     }
+    if !c.build.is_empty() {
+        let _ = write!(
+            out,
+            "<h2>Build folders ({})</h2><p class=\"note\">Each project’s tools recreate these \
+             on the next build (npm install, cargo build…).</p>\
+             <div class=\"group\"><div class=\"scroll\"><table><tr><th>Path</th><th>Made by</th>\
+             <th class=\"num\">Size</th><th class=\"num\">Last used</th></tr>",
+            c.build.len()
+        );
+        for b in c.build.iter().take(HTML_GROUP_LIMIT) {
+            let _ = write!(
+                out,
+                "<tr><td class=\"path\">{}{}</td><td>{}</td><td class=\"num\">{}</td><td class=\"num\">{}</td></tr>",
+                if b.selected {
+                    "<span class=\"tag remove\">Remove</span> "
+                } else {
+                    ""
+                },
+                esc_path(&b.path),
+                esc(b.tool),
+                human(b.bytes),
+                time(b.last_used_ns),
+            );
+        }
+        out.push_str("</table></div></div>");
+        more(&mut out, c.build.len());
+    }
     if !c.empty.is_empty() {
         let _ = write!(
             out,
@@ -462,6 +518,7 @@ fn html(session: &Session, c: &Contents, clock: ReportClock) -> String {
         && c.large.is_empty()
         && c.empty.is_empty()
         && c.junk.is_empty()
+        && c.build.is_empty()
     {
         out.push_str("<h2>Nothing to report</h2><p class=\"note\">No duplicates, large files or empty folders left.</p>");
     }

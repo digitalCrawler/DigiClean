@@ -34,6 +34,8 @@ pub enum Phase {
     FullHashing,
     Verifying,
     AnalyzingFolders,
+    /// Measuring build folders (`node_modules`, `target`…).
+    BuildFolders,
     Finalizing,
     Done,
 }
@@ -71,6 +73,8 @@ pub enum ResultKind {
     PhotoIssues,
     /// Songs and videos with the same soundtrack (after `analyze_media`).
     SimilarMedia,
+    /// Folders a project's tools recreate (`node_modules`, `target`…).
+    BuildFolders,
 }
 
 /// See the engine's `junk` module.
@@ -183,6 +187,8 @@ pub struct ScanStatsDto {
     pub photos: i64,
     pub junk_items: i64,
     pub junk_bytes: i64,
+    pub build_folders: i64,
+    pub build_bytes: i64,
     pub errors: i64,
     pub elapsed_ms: i64,
     pub hash_algorithm: String,
@@ -264,6 +270,32 @@ pub struct JunkPage {
     pub items: Vec<JunkEntryDto>,
 }
 
+/// A folder a project's tools recreate, such as `node_modules`.
+#[derive(Debug, Clone)]
+pub struct BuildFolderDto {
+    pub id: u32,
+    pub path: String,
+    pub name: String,
+    /// The project folder it belongs to.
+    pub project: String,
+    pub project_name: String,
+    /// Who makes it: "Node.js".
+    pub tool: String,
+    /// How to get it back: "npm install".
+    pub rebuild: String,
+    pub files: i64,
+    pub size: i64,
+    /// When the project was last worked on or built.
+    pub last_used_ms: i64,
+    pub selected: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct BuildFolderPage {
+    pub total: u32,
+    pub folders: Vec<BuildFolderDto>,
+}
+
 #[derive(Debug, Clone)]
 pub struct LargeFilePage {
     pub total: u32,
@@ -294,6 +326,7 @@ pub struct GroupQuery {
     /// Junk list only: one kind.
     pub junk_kind: Option<JunkKind>,
     /// Old-files list: last changed before this time (ms since epoch).
+    /// Build folders: project last used before this time.
     pub modified_before_ms: Option<i64>,
     /// Old-files list: only below these folders.
     pub within: Option<Vec<String>>,
@@ -301,6 +334,17 @@ pub struct GroupQuery {
     pub extensions: Option<Vec<String>>,
     /// Photo-issues list: one kind.
     pub photo_issue: Option<PhotoIssueKind>,
+}
+
+/// How much of a list of single items is ticked, under the list's filters.
+#[derive(Debug, Clone)]
+pub struct ListSelectionDto {
+    /// Items the list shows.
+    pub total: u32,
+    /// Of those, the ticked ones.
+    pub selected: u32,
+    /// Size of everything the list shows.
+    pub bytes: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -350,6 +394,10 @@ pub struct SelectionSummaryDto {
     pub junk_bytes: i64,
     pub remaining_junk: i64,
     pub remaining_junk_bytes: i64,
+    pub build_folders: i64,
+    pub build_bytes: i64,
+    pub remaining_build_folders: i64,
+    pub remaining_build_bytes: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -524,6 +572,8 @@ pub enum RecommendationKind {
     /// Copies in the download folders of files kept elsewhere.
     DownloadDuplicates,
     EmptyFolders,
+    /// Build folders of projects not used for three months.
+    BuildFolders,
 }
 
 #[derive(Debug, Clone)]

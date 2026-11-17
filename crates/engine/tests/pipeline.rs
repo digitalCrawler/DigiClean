@@ -1177,6 +1177,100 @@ fn old_files_are_filtered_by_age_place_and_type() {
 }
 
 #[test]
+fn select_all_ticks_exactly_what_the_list_shows() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("data");
+    let downloads = root.join("Downloads");
+    write(&downloads.join("setup-2019.exe"), &data(140, 9000));
+    write(&downloads.join("photo.jpg"), &data(141, 7000));
+    write(&downloads.join("new.msi"), &data(142, 5000));
+    write(&root.join("Docs/thesis.pdf"), &data(143, 8000));
+    write(&root.join("Docs/copy.pdf"), &data(143, 8000));
+    write(&root.join("Videos/film.mp4"), &data(144, 2 << 20));
+    fs::create_dir_all(root.join("Empty/one")).unwrap();
+    fs::create_dir_all(root.join("Docs/Empty two")).unwrap();
+    for old in [
+        "Downloads/setup-2019.exe",
+        "Downloads/photo.jpg",
+        "Docs/thesis.pdf",
+    ] {
+        age(&root.join(old), 800);
+    }
+    let mut session = scan(&config(&root));
+
+    let year_ago = digiclean_engine::walker::system_time_ns(
+        std::time::SystemTime::now() - std::time::Duration::from_secs(365 * 86_400),
+    );
+    let old = GroupFilter {
+        modified_before_ns: Some(year_ago),
+        ..Default::default()
+    };
+    let old_downloads = GroupFilter {
+        within: vec![downloads.clone()],
+        ..old.clone()
+    };
+    let shown = |s: &Session, f: &GroupFilter| {
+        let l = s.list_selection(GroupKind::OldFiles, f);
+        (l.total, l.selected, l.bytes)
+    };
+    assert_eq!(shown(&session, &old_downloads), (2, 0, 16_000));
+
+    // Only what the filter shows is ticked; ticking again changes nothing.
+    assert_eq!(
+        session.set_list_selected(GroupKind::OldFiles, &old_downloads, true),
+        2
+    );
+    assert_eq!(
+        session.set_list_selected(GroupKind::OldFiles, &old_downloads, true),
+        0
+    );
+    assert_eq!(shown(&session, &old_downloads), (2, 2, 16_000));
+    assert_eq!(shown(&session, &old), (3, 2, 24_000));
+    let summary = session.summary();
+    assert_eq!((summary.old_files, summary.old_file_bytes), (2, 16_000));
+    assert_eq!(
+        summary.large_files, 0,
+        "old and large files are ticked apart"
+    );
+
+    // Same answer when the list was just built (its order is reused).
+    session.old_files(0, 10, SortKey::Name, false, &old);
+    assert_eq!(shown(&session, &old), (3, 2, 24_000));
+    assert_eq!(
+        session.set_list_selected(GroupKind::OldFiles, &old, false),
+        2
+    );
+    assert_eq!(session.summary().old_files, 0);
+
+    // Large files and empty folders.
+    let all = GroupFilter::default();
+    let large = session.list_selection(GroupKind::LargeFiles, &all).total;
+    assert_eq!(large, 1);
+    assert_eq!(
+        session.set_list_selected(GroupKind::LargeFiles, &all, true),
+        large
+    );
+    assert_eq!(session.summary().large_files, large as u64);
+    assert_eq!(
+        session.list_selection(GroupKind::EmptyFolders, &all).total,
+        2
+    );
+    assert_eq!(
+        session.set_list_selected(GroupKind::EmptyFolders, &all, true),
+        2
+    );
+    assert_eq!(session.summary().empty_folders, 2);
+
+    // Groups are not lists: duplicates always keep a copy.
+    assert_eq!(
+        session.list_selection(GroupKind::Files, &all),
+        Default::default()
+    );
+    assert_eq!(session.set_list_selected(GroupKind::Files, &all, true), 0);
+    assert_eq!(session.summary().files, 0);
+}
+
+#[test]
 fn recommendations_only_pick_low_risk_items() {
     use digiclean_engine::session::RecommendationKind as R;
     let dir = tempfile::tempdir().unwrap();
@@ -1390,7 +1484,8 @@ fn a_fully_ticked_similar_set_is_removed_completely() {
     for (seed, name) in [(1, "Beach"), (9, "Forest")] {
         let photo = scene(1200, 900, seed);
         save_jpeg(&photo, &root.join(format!("Camera/{name}.jpg")));
-        let small = image::imageops::resize(&photo, 480, 360, image::imageops::FilterType::Triangle);
+        let small =
+            image::imageops::resize(&photo, 480, 360, image::imageops::FilterType::Triangle);
         save_jpeg(&small, &root.join(format!("WhatsApp/{name}-small.jpg")));
     }
     let mut session = scan(&config(&root));
@@ -1413,7 +1508,11 @@ fn a_fully_ticked_similar_set_is_removed_completely() {
     assert_eq!(sets.len(), 2);
     let set_of = |name: &str| {
         sets.iter()
-            .find(|s| s.items.iter().any(|i| i.path.ends_with(format!("Camera/{name}.jpg"))))
+            .find(|s| {
+                s.items
+                    .iter()
+                    .any(|i| i.path.ends_with(format!("Camera/{name}.jpg")))
+            })
             .unwrap()
             .clone()
     };
@@ -1660,4 +1759,268 @@ fn background_check_saves_results_and_decides_on_a_notice() {
     let full = run_check(&job, &ScanControl::new()).unwrap();
     assert_eq!(full.low_space.len(), 1);
     assert_eq!(full.notice.unwrap().title, "Your drive is almost full");
+}
+
+/// Ages every file below `dir`.
+fn age_tree(dir: &Path, days: u64) {
+    for entry in fs::read_dir(dir).unwrap().flatten() {
+        let path = entry.path();
+        if entry.file_type().unwrap().is_dir() {
+            age_tree(&path, days);
+        } else {
+            age(&path, days);
+        }
+    }
+}
+
+/// `project/folder`, tool, files and bytes of every build folder.
+fn build_names(session: &Session) -> Vec<(String, &'static str, u64, u64)> {
+    let mut out: Vec<_> = session
+        .build_folders(0, 100, SortKey::Path, false, &GroupFilter::default())
+        .items
+        .into_iter()
+        .map(|b| {
+            let name = |p: &Path| p.file_name().unwrap().to_string_lossy().into_owned();
+            (
+                format!("{}/{}", name(&b.project), name(&b.path)),
+                b.tool,
+                b.files,
+                b.bytes,
+            )
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn build_folders_are_found_next_to_their_project_and_removed_safely() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("code");
+    write(&root.join("web/package.json"), b"{}");
+    write(&root.join("web/src/app.js"), b"console.log(1)");
+    write(&root.join("web/node_modules/a/index.js"), &data(200, 1_000));
+    // Nested: part of the outer folder, never listed on its own.
+    write(
+        &root.join("web/node_modules/a/node_modules/b/index.js"),
+        &data(201, 500),
+    );
+    // Hidden: found and measured, though hidden folders are not scanned.
+    write(&root.join("web/.next/cache/page.bin"), &data(202, 700));
+    write(&root.join("rs/Cargo.toml"), b"[package]");
+    write(&root.join("rs/target/debug/app.exe"), &data(203, 2_000));
+    // A copy of a kept file inside a build folder.
+    write(&root.join("rs/target/debug/copy.bin"), &data(204, 3_000));
+    write(&root.join("keep.bin"), &data(204, 3_000));
+    // No project next to it: not a build folder.
+    write(&root.join("notes/node_modules/readme.txt"), b"mine");
+
+    let mut session = scan(&config(&root));
+    assert_eq!(
+        build_names(&session),
+        vec![
+            ("rs/target".to_string(), "Rust", 2, 5_000),
+            ("web/.next".to_string(), "Next.js", 1, 700),
+            ("web/node_modules".to_string(), "Node.js", 2, 1_500),
+        ]
+    );
+    let stats = &session.result.stats;
+    assert_eq!((stats.build_folders, stats.build_bytes), (3, 7_200));
+    assert!(
+        !session
+            .result
+            .files
+            .iter()
+            .any(|f| &*f.name == std::ffi::OsStr::new("page.bin")),
+        "hidden build folders are measured, not scanned"
+    );
+    assert_eq!(session.summary().active_file_groups, 1);
+
+    // Reports list them.
+    use digiclean_engine::report::{render, ReportClock, ReportFormat};
+    let clock = ReportClock {
+        now_ms: 0,
+        utc_offset_min: 0,
+    };
+    let csv = String::from_utf8(render(&session, ReportFormat::Csv, clock)).unwrap();
+    assert_eq!(csv.matches("\r\nbuild_folder,").count(), 3);
+    let html = String::from_utf8(render(&session, ReportFormat::Html, clock)).unwrap();
+    assert!(html.contains("Build folders (3)") && html.contains("Next.js"));
+    let json: serde_json::Value =
+        serde_json::from_slice(&render(&session, ReportFormat::Json, clock)).unwrap();
+    assert_eq!(json["build_folders"].as_array().unwrap().len(), 3);
+    assert_eq!(json["summary"]["build_folder_bytes"], 7_200);
+
+    // Search covers the tool too; the age filter uses the last activity.
+    let rust = GroupFilter {
+        search: Some("rust".into()),
+        ..Default::default()
+    };
+    assert_eq!(
+        session
+            .build_folders(0, 10, SortKey::Size, true, &rust)
+            .total,
+        1
+    );
+    let long_ago = GroupFilter {
+        modified_before_ns: Some(0),
+        ..Default::default()
+    };
+    assert_eq!(
+        session
+            .build_folders(0, 10, SortKey::Size, true, &long_ago)
+            .total,
+        0
+    );
+
+    let all = GroupFilter::default();
+    assert_eq!(
+        session.set_list_selected(GroupKind::BuildFolders, &all, true),
+        3
+    );
+    let s = session.summary();
+    assert_eq!((s.build_folders, s.build_bytes), (3, 7_200));
+
+    // A build ran in one project after the scan.
+    write(&root.join("web/.next/cache/new.bin"), b"fresh");
+
+    let bin = RecoveryBin::new(vec![dir.path().join("bin")]).unwrap();
+    let report = actions::execute(
+        &mut session,
+        &request(ActionKind::RecoveryBin, ActionTarget::BuildFolders),
+        Some(&bin),
+        &ScanControl::new(),
+        &|_, _| {},
+    )
+    .unwrap();
+    assert_eq!(
+        (report.succeeded, report.skipped),
+        (2, 1),
+        "{:?}",
+        report.issues
+    );
+    assert_eq!(report.bytes_in_bin, 6_500);
+    assert!(report.issues[0].message.contains("changed since the scan"));
+    assert!(!root.join("web/node_modules").exists());
+    assert!(!root.join("rs/target").exists());
+    assert!(root.join("web/.next").exists());
+    assert!(root.join("web/package.json").exists() && root.join("rs/Cargo.toml").exists());
+    let s = session.summary();
+    assert_eq!(
+        (s.remaining_build_folders, s.build_folders),
+        (1, 1),
+        "the skipped folder stays ticked"
+    );
+    assert_eq!(
+        s.active_file_groups, 0,
+        "the copy inside the removed folder is gone too"
+    );
+
+    // Undo brings both back, with what the scan saw inside them.
+    let restored = bin.restore_batch(report.batch_id.as_deref().unwrap());
+    assert_eq!(restored.restored, 2);
+    let paths: Vec<PathBuf> = report.affected_paths.iter().map(PathBuf::from).collect();
+    session.mark_present(&paths);
+    let s = session.summary();
+    assert_eq!(s.remaining_build_folders, 3);
+    assert_eq!(s.active_file_groups, 1);
+}
+
+#[test]
+fn build_folders_refuse_projects_that_moved_on() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("code");
+    write(&root.join("app/pubspec.yaml"), b"name: app");
+    write(&root.join("app/build/out.bin"), &data(210, 4_000));
+    write(&root.join("lib/Cargo.toml"), b"[package]");
+    write(&root.join("lib/target/x.rlib"), &data(211, 1_000));
+    let mut session = scan(&config(&root));
+    assert_eq!(build_names(&session).len(), 2);
+    session.set_list_selected(GroupKind::BuildFolders, &GroupFilter::default(), true);
+
+    // The project is no longer a Rust project.
+    fs::remove_file(root.join("lib/Cargo.toml")).unwrap();
+    let report = actions::execute(
+        &mut session,
+        &request(ActionKind::DeletePermanently, ActionTarget::BuildFolders),
+        None,
+        &ScanControl::new(),
+        &|_, _| {},
+    )
+    .unwrap();
+    assert_eq!((report.succeeded, report.skipped), (1, 1));
+    assert_eq!(report.bytes_freed, 4_000);
+    assert!(!root.join("app/build").exists());
+    assert!(root.join("lib/target/x.rlib").exists());
+    assert!(report.issues[0]
+        .message
+        .contains("no longer a build folder"));
+}
+
+#[test]
+fn build_folders_follow_exclusions_saved_results_and_recommendations() {
+    use digiclean_engine::session::RecommendationKind as R;
+    use digiclean_engine::snapshot;
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("code");
+    write(&root.join("old/package.json"), b"{}");
+    write(&root.join("old/node_modules/a.js"), &data(220, 6_000));
+    write(&root.join("old/requirements.txt"), b"requests");
+    write(&root.join("old/.venv/pyvenv.cfg"), b"home = /usr");
+    write(&root.join("old/.venv/lib/site.py"), &data(221, 2_000));
+    age_tree(&root.join("old"), 200);
+    write(&root.join("new/package.json"), b"{}");
+    write(&root.join("new/node_modules/b.js"), &data(222, 9_000));
+
+    // A folder excluded by path is never measured.
+    let mut cfg = config(&root);
+    cfg.exclude_paths = vec![root.join("new/node_modules")];
+    assert_eq!(scan(&cfg).result.stats.build_folders, 2);
+
+    // A pattern (the app skips node_modules by default) keeps the files out
+    // of the scan, but the folder is still measured and listed.
+    let mut cfg = config(&root);
+    cfg.exclude_globs = vec!["**/node_modules".into()];
+    let patterned = scan(&cfg);
+    assert_eq!(patterned.result.stats.build_folders, 3);
+    assert!(
+        !patterned
+            .result
+            .files
+            .iter()
+            .any(|f| &*f.name == std::ffi::OsStr::new("b.js")),
+        "its files stay out of the scan"
+    );
+    assert_eq!(
+        build_names(&patterned)[0],
+        ("new/node_modules".into(), "Node.js", 1, 9_000)
+    );
+
+    let mut session = scan(&config(&root));
+    assert_eq!(session.result.stats.build_folders, 3);
+    let recs = session.recommendations(&[]);
+    let builds = recs.iter().find(|r| r.kind == R::BuildFolders).unwrap();
+    assert_eq!(
+        (builds.items, builds.bytes),
+        (2, 6_000 + 2_000 + 11),
+        "only the project untouched for months"
+    );
+    assert_eq!(
+        session.select_recommendation(R::BuildFolders, &[]),
+        GroupKind::BuildFolders
+    );
+    assert_eq!(session.summary().build_folders, 2);
+
+    // Saved results keep the folders, what was removed and the ticks.
+    let path = dir.path().join("results.bin");
+    snapshot::save(&session, 42, &path).unwrap();
+    let (loaded, finished) = snapshot::load(&path).unwrap();
+    assert_eq!(finished, 42);
+    assert_eq!(build_names(&loaded), build_names(&session));
+    let s = loaded.summary();
+    assert_eq!((s.build_folders, s.remaining_build_folders), (2, 3));
+
+    // Ignoring a project hides its build folders.
+    session.ignore_folders(&[root.join("old")]);
+    assert_eq!(session.summary().remaining_build_folders, 1);
 }

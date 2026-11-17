@@ -61,6 +61,8 @@ pub enum GroupKind {
     /// Songs and videos with the same soundtrack (after
     /// [`Session::set_media_analysis`]).
     SimilarMedia,
+    /// Build folders such as `node_modules` (each "group" is a build id).
+    BuildFolders,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -85,6 +87,7 @@ pub struct GroupFilter {
     /// Junk view only: one kind of junk.
     pub junk_kind: Option<JunkKind>,
     /// Old-files view: last modified before this time (ns since epoch).
+    /// Build folders: project last used before this time.
     pub modified_before_ns: Option<i64>,
     /// Old-files view: only below these folders (empty = anywhere).
     pub within: Vec<PathBuf>,
@@ -165,7 +168,12 @@ pub enum RecommendationKind {
     /// Copies in the download folders of files kept elsewhere.
     DownloadDuplicates,
     EmptyFolders,
+    /// Build folders of projects not used for [`INACTIVE_PROJECT_DAYS`].
+    BuildFolders,
 }
+
+/// A project untouched this long has build folders worth recommending.
+pub const INACTIVE_PROJECT_DAYS: i64 = 90;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Recommendation {
@@ -248,6 +256,23 @@ pub struct JunkItem {
     pub selected: bool,
 }
 
+/// A build folder in the list.
+#[derive(Clone, Debug)]
+pub struct BuildItem {
+    pub id: u32,
+    pub path: PathBuf,
+    /// The project folder.
+    pub project: PathBuf,
+    pub tool: &'static str,
+    /// How to get it back ("npm install").
+    pub rebuild: &'static str,
+    pub files: u64,
+    pub bytes: u64,
+    /// When the project was last worked on or built (ns).
+    pub last_used_ns: i64,
+    pub selected: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct FileGroupView {
     pub index: u32,
@@ -281,6 +306,18 @@ pub struct FolderGroupView {
 pub struct Page<T> {
     pub total: usize,
     pub items: Vec<T>,
+}
+
+/// A list of single items (large files, old files, photos to review, junk,
+/// empty folders) under a filter: how much of it is ticked.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ListSelection {
+    /// Items that match the filter.
+    pub total: usize,
+    /// Of those, the ticked ones.
+    pub selected: usize,
+    /// Size of all matching items.
+    pub bytes: u64,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -321,6 +358,10 @@ pub struct SelectionSummary {
     pub junk_bytes: u64,
     pub remaining_junk: u64,
     pub remaining_junk_bytes: u64,
+    pub build_folders: u64,
+    pub build_bytes: u64,
+    pub remaining_build_folders: u64,
+    pub remaining_build_bytes: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -369,6 +410,8 @@ pub struct Session {
     pub(crate) dir_partial: Vec<bool>,
     pub(crate) junk_state: Vec<ItemState>,
     pub(crate) junk_selected: Vec<bool>,
+    pub(crate) build_state: Vec<ItemState>,
+    pub(crate) build_selected: Vec<bool>,
     generation: u64,
     view_cache: Mutex<Option<(ViewKey, Arc<Vec<u32>>)>>,
     live_tree_cache: Mutex<Option<(u64, LiveTree)>>,
@@ -410,6 +453,8 @@ impl Session {
             dir_partial: vec![false; nd],
             junk_state: vec![ItemState::Present; result.junk.len()],
             junk_selected: vec![false; result.junk.len()],
+            build_state: vec![ItemState::Present; result.build_dirs.len()],
+            build_selected: vec![false; result.build_dirs.len()],
             tree,
             file_state: vec![ItemState::Present; nf],
             dir_state: vec![ItemState::Present; nd],
@@ -457,6 +502,15 @@ impl Session {
         self.junk_state[j as usize] == ItemState::Present
             && self.dir_state[entry.dir as usize] == ItemState::Present
             && (entry.file == NO_ID || self.file_state[entry.file as usize] == ItemState::Present)
+    }
+
+    /// Still there: not removed itself, nor its project folder, and not
+    /// inside an ignored folder.
+    pub(crate) fn build_present(&self, b: u32) -> bool {
+        let entry = &self.result.build_dirs[b as usize];
+        self.build_state[b as usize] == ItemState::Present
+            && self.dir_state[entry.parent as usize] == ItemState::Present
+            && (entry.dir == NO_ID || self.dir_state[entry.dir as usize] == ItemState::Present)
     }
 
     fn live_file_count(&self, group: u32) -> usize {
@@ -509,145 +563,7 @@ impl Session {
                 return order.clone();
             }
         }
-        let needle = filter
-            .search
-            .as_ref()
-            .map(|s| s.trim().to_lowercase())
-            .filter(|s| !s.is_empty());
-
-        let mut order: Vec<u32> = match kind {
-            GroupKind::Files => (0..self.result.file_groups.len() as u32)
-                .filter(|&g| {
-                    let group = &self.result.file_groups[g as usize];
-                    !self.file_group_ignored[g as usize]
-                        && self.live_file_count(g) > 1
-                        && filter.category.is_none_or(|c| c == group.category)
-                        && filter.min_size.is_none_or(|m| group.size >= m)
-                        && needle.as_ref().is_none_or(|n| {
-                            self.present_files(g)
-                                .any(|f| self.matches_search(&self.result.file_path(f), n))
-                        })
-                })
-                .collect(),
-            GroupKind::Folders => (0..self.result.folder_groups.len() as u32)
-                .filter(|&g| {
-                    let group = &self.result.folder_groups[g as usize];
-                    !self.folder_group_ignored[g as usize]
-                        && self.live_dir_count(g) > 1
-                        && filter.min_size.is_none_or(|m| group.total_bytes >= m)
-                        && needle.as_ref().is_none_or(|n| {
-                            self.present_dirs(g)
-                                .any(|d| self.matches_search(self.result.dir_path(d), n))
-                        })
-                })
-                .collect(),
-            GroupKind::EmptyFolders => self
-                .result
-                .empty_folders
-                .iter()
-                .copied()
-                .filter(|&d| {
-                    self.dir_state[d as usize] == ItemState::Present
-                        && needle
-                            .as_ref()
-                            .is_none_or(|n| self.matches_search(self.result.dir_path(d), n))
-                })
-                .collect(),
-            GroupKind::LargeFiles => self
-                .result
-                .large_files
-                .iter()
-                .copied()
-                .filter(|&f| {
-                    let file = &self.result.files[f as usize];
-                    self.file_state[f as usize] == ItemState::Present
-                        && filter.category.is_none_or(|c| c == file.category)
-                        && filter.min_size.is_none_or(|m| file.size >= m)
-                        && needle
-                            .as_ref()
-                            .is_none_or(|n| self.matches_search(&self.result.file_path(f), n))
-                })
-                .collect(),
-            GroupKind::OldFiles => {
-                let within: Vec<PathBuf> =
-                    filter.within.iter().map(|p| paths::normalize(p)).collect();
-                (0..self.result.files.len() as u32)
-                    .filter(|&f| {
-                        let file = &self.result.files[f as usize];
-                        file.eligible
-                            && self.file_state[f as usize] == ItemState::Present
-                            && filter
-                                .modified_before_ns
-                                .is_none_or(|t| file.modified_ns < t)
-                            && filter.category.is_none_or(|c| c == file.category)
-                            && filter.min_size.is_none_or(|m| file.size >= m)
-                            && (filter.extensions.is_empty()
-                                || paths::extension_lower(&file.name)
-                                    .is_some_and(|e| filter.extensions.contains(&e)))
-                            && (within.is_empty()
-                                || paths::is_within_any(self.result.dir_path(file.dir), &within))
-                            && needle
-                                .as_ref()
-                                .is_none_or(|n| self.matches_search(&self.result.file_path(f), n))
-                    })
-                    .collect()
-            }
-            GroupKind::SimilarMedia => (0..self.media.as_ref().map_or(0, |m| m.groups.len())
-                as u32)
-                .filter(|&g| {
-                    let live = self.live_media(g);
-                    live.len() > 1
-                        && needle.as_ref().is_none_or(|n| {
-                            live.iter()
-                                .any(|&f| self.matches_search(&self.result.file_path(f), n))
-                        })
-                })
-                .collect(),
-            GroupKind::SimilarPhotos => (0..self.photo.as_ref().map_or(0, |p| p.groups.len())
-                as u32)
-                .filter(|&g| {
-                    let live = self.live_similar(g);
-                    live.len() > 1
-                        && needle.as_ref().is_none_or(|n| {
-                            live.iter()
-                                .any(|&f| self.matches_search(&self.result.file_path(f), n))
-                        })
-                })
-                .collect(),
-            GroupKind::PhotoIssues => {
-                let mut ids: Vec<u32> = self
-                    .photo
-                    .as_ref()
-                    .map(|p| {
-                        p.issues
-                            .iter()
-                            .filter(|(_, issues)| {
-                                filter.photo_issue.is_none_or(|k| issues.contains(&k))
-                            })
-                            .map(|(&f, _)| f)
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                ids.retain(|&f| {
-                    self.file_state[f as usize] == ItemState::Present
-                        && needle
-                            .as_ref()
-                            .is_none_or(|n| self.matches_search(&self.result.file_path(f), n))
-                });
-                ids
-            }
-            GroupKind::Junk => (0..self.result.junk.len() as u32)
-                .filter(|&j| {
-                    let entry = &self.result.junk[j as usize];
-                    self.junk_present(j)
-                        && filter.junk_kind.is_none_or(|k| k == entry.kind)
-                        && filter.min_size.is_none_or(|m| entry.size >= m)
-                        && needle
-                            .as_ref()
-                            .is_none_or(|n| self.matches_search(&self.result.junk_path(j), n))
-                })
-                .collect(),
-        };
+        let mut order = self.matching(kind, filter);
 
         let cmp = |a: &u32, b: &u32| -> Ordering {
             match kind {
@@ -781,6 +697,29 @@ impl Session {
                         _ => pa.cmp(pb),
                     }
                 }
+                GroupKind::BuildFolders => {
+                    let (ba, bb) = (
+                        &self.result.build_dirs[*a as usize],
+                        &self.result.build_dirs[*b as usize],
+                    );
+                    match sort {
+                        // The project's name: the folder names are all alike.
+                        SortKey::Name => self.result.dirs[ba.parent as usize]
+                            .name()
+                            .to_ascii_lowercase()
+                            .cmp(
+                                &self.result.dirs[bb.parent as usize]
+                                    .name()
+                                    .to_ascii_lowercase(),
+                            ),
+                        SortKey::Path => {
+                            self.result.build_path(*a).cmp(&self.result.build_path(*b))
+                        }
+                        SortKey::Modified => ba.last_used_ns().cmp(&bb.last_used_ns()),
+                        SortKey::Count => ba.files.cmp(&bb.files),
+                        SortKey::Wasted | SortKey::Size => ba.bytes.cmp(&bb.bytes),
+                    }
+                }
             }
         };
         order.sort_by(|a, b| {
@@ -791,6 +730,163 @@ impl Session {
         let order = Arc::new(order);
         *self.view_cache.lock() = Some((key, order.clone()));
         order
+    }
+
+    /// The items of `kind` that match `filter`, in no particular order.
+    fn matching(&self, kind: GroupKind, filter: &GroupFilter) -> Vec<u32> {
+        let needle = filter
+            .search
+            .as_ref()
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty());
+
+        match kind {
+            GroupKind::Files => (0..self.result.file_groups.len() as u32)
+                .filter(|&g| {
+                    let group = &self.result.file_groups[g as usize];
+                    !self.file_group_ignored[g as usize]
+                        && self.live_file_count(g) > 1
+                        && filter.category.is_none_or(|c| c == group.category)
+                        && filter.min_size.is_none_or(|m| group.size >= m)
+                        && needle.as_ref().is_none_or(|n| {
+                            self.present_files(g)
+                                .any(|f| self.matches_search(&self.result.file_path(f), n))
+                        })
+                })
+                .collect(),
+            GroupKind::Folders => (0..self.result.folder_groups.len() as u32)
+                .filter(|&g| {
+                    let group = &self.result.folder_groups[g as usize];
+                    !self.folder_group_ignored[g as usize]
+                        && self.live_dir_count(g) > 1
+                        && filter.min_size.is_none_or(|m| group.total_bytes >= m)
+                        && needle.as_ref().is_none_or(|n| {
+                            self.present_dirs(g)
+                                .any(|d| self.matches_search(self.result.dir_path(d), n))
+                        })
+                })
+                .collect(),
+            GroupKind::EmptyFolders => self
+                .result
+                .empty_folders
+                .iter()
+                .copied()
+                .filter(|&d| {
+                    self.dir_state[d as usize] == ItemState::Present
+                        && needle
+                            .as_ref()
+                            .is_none_or(|n| self.matches_search(self.result.dir_path(d), n))
+                })
+                .collect(),
+            GroupKind::LargeFiles => self
+                .result
+                .large_files
+                .iter()
+                .copied()
+                .filter(|&f| {
+                    let file = &self.result.files[f as usize];
+                    self.file_state[f as usize] == ItemState::Present
+                        && filter.category.is_none_or(|c| c == file.category)
+                        && filter.min_size.is_none_or(|m| file.size >= m)
+                        && needle
+                            .as_ref()
+                            .is_none_or(|n| self.matches_search(&self.result.file_path(f), n))
+                })
+                .collect(),
+            GroupKind::OldFiles => {
+                let within: Vec<PathBuf> =
+                    filter.within.iter().map(|p| paths::normalize(p)).collect();
+                (0..self.result.files.len() as u32)
+                    .filter(|&f| {
+                        let file = &self.result.files[f as usize];
+                        file.eligible
+                            && self.file_state[f as usize] == ItemState::Present
+                            && filter
+                                .modified_before_ns
+                                .is_none_or(|t| file.modified_ns < t)
+                            && filter.category.is_none_or(|c| c == file.category)
+                            && filter.min_size.is_none_or(|m| file.size >= m)
+                            && (filter.extensions.is_empty()
+                                || paths::extension_lower(&file.name)
+                                    .is_some_and(|e| filter.extensions.contains(&e)))
+                            && (within.is_empty()
+                                || paths::is_within_any(self.result.dir_path(file.dir), &within))
+                            && needle
+                                .as_ref()
+                                .is_none_or(|n| self.matches_search(&self.result.file_path(f), n))
+                    })
+                    .collect()
+            }
+            GroupKind::SimilarMedia => (0..self.media.as_ref().map_or(0, |m| m.groups.len())
+                as u32)
+                .filter(|&g| {
+                    let live = self.live_media(g);
+                    live.len() > 1
+                        && needle.as_ref().is_none_or(|n| {
+                            live.iter()
+                                .any(|&f| self.matches_search(&self.result.file_path(f), n))
+                        })
+                })
+                .collect(),
+            GroupKind::SimilarPhotos => (0..self.photo.as_ref().map_or(0, |p| p.groups.len())
+                as u32)
+                .filter(|&g| {
+                    let live = self.live_similar(g);
+                    live.len() > 1
+                        && needle.as_ref().is_none_or(|n| {
+                            live.iter()
+                                .any(|&f| self.matches_search(&self.result.file_path(f), n))
+                        })
+                })
+                .collect(),
+            GroupKind::PhotoIssues => {
+                let mut ids: Vec<u32> = self
+                    .photo
+                    .as_ref()
+                    .map(|p| {
+                        p.issues
+                            .iter()
+                            .filter(|(_, issues)| {
+                                filter.photo_issue.is_none_or(|k| issues.contains(&k))
+                            })
+                            .map(|(&f, _)| f)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                ids.retain(|&f| {
+                    self.file_state[f as usize] == ItemState::Present
+                        && needle
+                            .as_ref()
+                            .is_none_or(|n| self.matches_search(&self.result.file_path(f), n))
+                });
+                ids
+            }
+            GroupKind::Junk => (0..self.result.junk.len() as u32)
+                .filter(|&j| {
+                    let entry = &self.result.junk[j as usize];
+                    self.junk_present(j)
+                        && filter.junk_kind.is_none_or(|k| k == entry.kind)
+                        && filter.min_size.is_none_or(|m| entry.size >= m)
+                        && needle
+                            .as_ref()
+                            .is_none_or(|n| self.matches_search(&self.result.junk_path(j), n))
+                })
+                .collect(),
+            GroupKind::BuildFolders => (0..self.result.build_dirs.len() as u32)
+                .filter(|&b| {
+                    let entry = &self.result.build_dirs[b as usize];
+                    self.build_present(b)
+                        && filter
+                            .modified_before_ns
+                            .is_none_or(|t| entry.last_used_ns() < t)
+                        && filter.min_size.is_none_or(|m| entry.bytes >= m)
+                        && needle.as_ref().is_none_or(|n| {
+                            self.matches_search(&self.result.build_path(b), n)
+                                || entry.rule.tool.to_lowercase().contains(n.as_str())
+                        })
+                })
+                .collect(),
+        }
     }
 
     fn first_present_file(&self, group: u32) -> Option<u32> {
@@ -1504,6 +1600,73 @@ impl Session {
             .collect()
     }
 
+    // ── Build folders ──────────────────────────────────────────────────
+
+    pub fn build_item(&self, b: u32) -> BuildItem {
+        let entry = &self.result.build_dirs[b as usize];
+        BuildItem {
+            id: b,
+            path: self.result.build_path(b),
+            project: self.result.dirs[entry.parent as usize].path.clone(),
+            tool: entry.rule.tool,
+            rebuild: entry.rule.rebuild,
+            files: entry.files,
+            bytes: entry.bytes,
+            last_used_ns: entry.last_used_ns(),
+            selected: self.build_selected[b as usize],
+        }
+    }
+
+    /// Build folders (filters: `modified_before_ns` on when the project was
+    /// last used, minimum size, search on the path or the tool).
+    pub fn build_folders(
+        &self,
+        offset: usize,
+        limit: usize,
+        sort: SortKey,
+        descending: bool,
+        filter: &GroupFilter,
+    ) -> Page<BuildItem> {
+        let order = self.ordered(GroupKind::BuildFolders, sort, descending, filter);
+        Page {
+            total: order.len(),
+            items: order
+                .iter()
+                .skip(offset)
+                .take(limit)
+                .map(|&b| self.build_item(b))
+                .collect(),
+        }
+    }
+
+    pub fn set_build_selected(&mut self, b: u32, selected: bool) -> Result<(), SelectionError> {
+        if b as usize >= self.build_selected.len() {
+            return Err(SelectionError::Unknown);
+        }
+        if !self.build_present(b) {
+            return Err(SelectionError::NotPresent);
+        }
+        self.build_selected[b as usize] = selected;
+        Ok(())
+    }
+
+    pub fn selected_build_folders(&self) -> Vec<u32> {
+        (0..self.build_selected.len() as u32)
+            .filter(|&b| self.build_selected[b as usize] && self.build_present(b))
+            .collect()
+    }
+
+    /// Build folders of projects nobody used for [`INACTIVE_PROJECT_DAYS`].
+    fn inactive_build_folders(&self) -> Vec<u32> {
+        let now = crate::walker::system_time_ns(std::time::SystemTime::now());
+        let cutoff = now.saturating_sub(INACTIVE_PROJECT_DAYS * 86_400 * 1_000_000_000);
+        (0..self.result.build_dirs.len() as u32)
+            .filter(|&b| {
+                self.build_present(b) && self.result.build_dirs[b as usize].last_used_ns() < cutoff
+            })
+            .collect()
+    }
+
     /// Picks a file from the large- or old-files list for removal.
     pub fn set_large_selected(&mut self, f: u32, selected: bool) -> Result<(), SelectionError> {
         let idx = f as usize;
@@ -1763,6 +1926,17 @@ impl Session {
                     .count() as u64,
                 bytes: 0,
             },
+            {
+                let inactive = self.inactive_build_folders();
+                Recommendation {
+                    kind: RecommendationKind::BuildFolders,
+                    items: inactive.len() as u64,
+                    bytes: inactive
+                        .iter()
+                        .map(|&b| self.result.build_dirs[b as usize].bytes)
+                        .sum(),
+                }
+            },
         ];
         out.retain(|r| r.items > 0);
         out
@@ -1804,6 +1978,13 @@ impl Session {
                 self.select_all_empty_folders(&GroupFilter::default());
                 GroupKind::EmptyFolders
             }
+            RecommendationKind::BuildFolders => {
+                self.clear_selection(GroupKind::BuildFolders);
+                for b in self.inactive_build_folders() {
+                    self.build_selected[b as usize] = true;
+                }
+                GroupKind::BuildFolders
+            }
         }
     }
 
@@ -1839,6 +2020,13 @@ impl Session {
             if self.file_state[f as usize] == ItemState::Present && same(&self.result.file_path(f))
             {
                 self.mark_file(f, ItemState::Removed);
+                n += 1;
+            }
+        }
+        // Hidden build folders have no record of their own.
+        for b in 0..self.result.build_dirs.len() as u32 {
+            if self.build_present(b) && same(&self.result.build_path(b)) {
+                self.mark_build(b, ItemState::Removed);
                 n += 1;
             }
         }
@@ -1950,7 +2138,8 @@ impl Session {
             | GroupKind::OldFiles
             | GroupKind::SimilarPhotos
             | GroupKind::PhotoIssues
-            | GroupKind::SimilarMedia => {}
+            | GroupKind::SimilarMedia
+            | GroupKind::BuildFolders => {}
         }
     }
 
@@ -1977,14 +2166,93 @@ impl Session {
             GroupKind::SimilarMedia => self.media_selected.iter_mut().for_each(|s| *s = false),
             GroupKind::PhotoIssues => self.photo_selected.iter_mut().for_each(|s| *s = false),
             GroupKind::Junk => self.junk_selected.iter_mut().for_each(|s| *s = false),
+            GroupKind::BuildFolders => self.build_selected.iter_mut().for_each(|s| *s = false),
         }
     }
 
     pub fn select_all_empty_folders(&mut self, filter: &GroupFilter) {
-        let order = self.ordered(GroupKind::EmptyFolders, SortKey::Path, false, filter);
-        for &d in order.iter() {
-            self.dir_selected[d as usize] = true;
+        self.set_list_selected(GroupKind::EmptyFolders, filter, true);
+    }
+
+    /// The items of `kind` matching `filter`: the order the list is showing
+    /// when it was just built, otherwise worked out without sorting.
+    fn matching_cached(&self, kind: GroupKind, filter: &GroupFilter) -> Arc<Vec<u32>> {
+        if let Some((key, order)) = self.view_cache.lock().as_ref() {
+            if key.kind == kind && key.filter == *filter && key.generation == self.generation {
+                return order.clone();
+            }
         }
+        Arc::new(self.matching(kind, filter))
+    }
+
+    /// The tick of an item of a list kind, `None` for the kinds whose
+    /// items are groups (duplicates, similar photos, songs and videos).
+    fn list_tick(&mut self, kind: GroupKind) -> Option<&mut Vec<bool>> {
+        match kind {
+            GroupKind::LargeFiles => Some(&mut self.large_selected),
+            GroupKind::OldFiles => Some(&mut self.old_selected),
+            GroupKind::PhotoIssues => Some(&mut self.photo_selected),
+            GroupKind::Junk => Some(&mut self.junk_selected),
+            GroupKind::EmptyFolders => Some(&mut self.dir_selected),
+            GroupKind::BuildFolders => Some(&mut self.build_selected),
+            GroupKind::Files
+            | GroupKind::Folders
+            | GroupKind::SimilarPhotos
+            | GroupKind::SimilarMedia => None,
+        }
+    }
+
+    /// How many items of a list match `filter` and how many of those are
+    /// ticked. Groups (duplicates, similar sets) are not lists: all zero.
+    pub fn list_selection(&self, kind: GroupKind, filter: &GroupFilter) -> ListSelection {
+        let ticked: &[bool] = match kind {
+            GroupKind::LargeFiles => &self.large_selected,
+            GroupKind::OldFiles => &self.old_selected,
+            GroupKind::PhotoIssues => &self.photo_selected,
+            GroupKind::Junk => &self.junk_selected,
+            GroupKind::EmptyFolders => &self.dir_selected,
+            GroupKind::BuildFolders => &self.build_selected,
+            GroupKind::Files
+            | GroupKind::Folders
+            | GroupKind::SimilarPhotos
+            | GroupKind::SimilarMedia => return ListSelection::default(),
+        };
+        let items = self.matching_cached(kind, filter);
+        let size = |id: u32| match kind {
+            GroupKind::Junk => self.result.junk[id as usize].size,
+            GroupKind::EmptyFolders => 0,
+            GroupKind::BuildFolders => self.result.build_dirs[id as usize].bytes,
+            _ => self.result.files[id as usize].size,
+        };
+        ListSelection {
+            total: items.len(),
+            selected: items.iter().filter(|&&id| ticked[id as usize]).count(),
+            bytes: items.iter().map(|&id| size(id)).sum(),
+        }
+    }
+
+    /// Ticks or unticks every item of a list that matches `filter` (what
+    /// the list is showing). Returns how many items changed; groups
+    /// (duplicates, similar sets) are left alone.
+    pub fn set_list_selected(
+        &mut self,
+        kind: GroupKind,
+        filter: &GroupFilter,
+        selected: bool,
+    ) -> usize {
+        let items = self.matching_cached(kind, filter);
+        let Some(ticked) = self.list_tick(kind) else {
+            return 0;
+        };
+        let mut changed = 0;
+        for &id in items.iter() {
+            let tick = &mut ticked[id as usize];
+            if *tick != selected {
+                *tick = selected;
+                changed += 1;
+            }
+        }
+        changed
     }
 
     fn pick_keeper(
@@ -2038,6 +2306,7 @@ impl Session {
                 | GroupKind::SimilarPhotos
                 | GroupKind::PhotoIssues
                 | GroupKind::SimilarMedia
+                | GroupKind::BuildFolders
         ) {
             return 0;
         }
@@ -2084,7 +2353,8 @@ impl Session {
                 | GroupKind::OldFiles
                 | GroupKind::SimilarPhotos
                 | GroupKind::PhotoIssues
-                | GroupKind::SimilarMedia => continue,
+                | GroupKind::SimilarMedia
+                | GroupKind::BuildFolders => continue,
                 GroupKind::EmptyFolders => {
                     self.dir_selected[g as usize] = rule.only_select_in.is_empty()
                         || paths::is_within_any(self.result.dir_path(g), &rule.only_select_in);
@@ -2216,6 +2486,18 @@ impl Session {
                 s.junk_bytes += size;
             }
         }
+        for b in 0..self.result.build_dirs.len() as u32 {
+            if !self.build_present(b) {
+                continue;
+            }
+            let size = self.result.build_dirs[b as usize].bytes;
+            s.remaining_build_folders += 1;
+            s.remaining_build_bytes += size;
+            if self.build_selected[b as usize] {
+                s.build_folders += 1;
+                s.build_bytes += size;
+            }
+        }
         s
     }
 
@@ -2340,6 +2622,20 @@ impl Session {
         }
     }
 
+    /// Records what happened to a build folder, and to everything the scan
+    /// saw inside it.
+    pub(crate) fn mark_build(&mut self, b: u32, state: ItemState) {
+        self.build_state[b as usize] = state;
+        self.build_selected[b as usize] = false;
+        let entry = &self.result.build_dirs[b as usize];
+        let (dir, parent) = (entry.dir, entry.parent);
+        if dir != NO_ID {
+            self.mark_dir_tree(dir, state);
+        } else {
+            self.mark_ancestors_modified(parent);
+        }
+    }
+
     pub(crate) fn mark_dir_tree(&mut self, d: u32, state: ItemState) {
         let mut subtree = Vec::new();
         self.result.for_each_descendant(d, |x| subtree.push(x));
@@ -2416,6 +2712,19 @@ impl Session {
             if wanted.contains(path.as_path()) && fs_exists_no_follow(&path) {
                 self.junk_state[j] = ItemState::Present;
                 revived += 1;
+            }
+        }
+        for b in 0..self.build_state.len() {
+            if self.build_state[b] != ItemState::Removed {
+                continue;
+            }
+            let path = self.result.build_path(b as u32);
+            if wanted.contains(path.as_path()) && path.is_dir() {
+                self.build_state[b] = ItemState::Present;
+                // A scanned build folder was revived with the folders above.
+                if self.result.build_dirs[b].dir == NO_ID {
+                    revived += 1;
+                }
             }
         }
         if revived > 0 {

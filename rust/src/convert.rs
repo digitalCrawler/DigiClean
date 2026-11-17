@@ -87,6 +87,7 @@ impl From<engine::ScanPhase> for Phase {
             P::FullHashing => Phase::FullHashing,
             P::Verifying => Phase::Verifying,
             P::AnalyzingFolders => Phase::AnalyzingFolders,
+            P::BuildFolders => Phase::BuildFolders,
             P::Finalizing => Phase::Finalizing,
             P::Done => Phase::Done,
         }
@@ -120,6 +121,7 @@ impl From<ResultKind> for engine::session::GroupKind {
             ResultKind::SimilarPhotos => G::SimilarPhotos,
             ResultKind::PhotoIssues => G::PhotoIssues,
             ResultKind::SimilarMedia => G::SimilarMedia,
+            ResultKind::BuildFolders => G::BuildFolders,
         }
     }
 }
@@ -136,6 +138,7 @@ impl From<ResultKind> for engine::ActionTarget {
             ResultKind::SimilarPhotos => engine::ActionTarget::SimilarPhotos,
             ResultKind::PhotoIssues => engine::ActionTarget::PhotoIssues,
             ResultKind::SimilarMedia => engine::ActionTarget::SimilarMedia,
+            ResultKind::BuildFolders => engine::ActionTarget::BuildFolders,
         }
     }
 }
@@ -244,6 +247,8 @@ impl From<&engine::ScanStats> for ScanStatsDto {
             photos: i(s.photos),
             junk_items: i(s.junk_items),
             junk_bytes: i(s.junk_bytes),
+            build_folders: i(s.build_folders),
+            build_bytes: i(s.build_bytes),
             errors: i(s.errors),
             elapsed_ms: i(s.elapsed_ms),
             hash_algorithm: s.hash_algorithm.clone(),
@@ -309,6 +314,16 @@ impl From<engine::session::FolderGroupView> for FolderGroupDto {
     }
 }
 
+impl From<engine::session::ListSelection> for ListSelectionDto {
+    fn from(l: engine::session::ListSelection) -> Self {
+        ListSelectionDto {
+            total: l.total as u32,
+            selected: l.selected as u32,
+            bytes: l.bytes as i64,
+        }
+    }
+}
+
 impl From<engine::session::SelectionSummary> for SelectionSummaryDto {
     fn from(s: engine::session::SelectionSummary) -> Self {
         SelectionSummaryDto {
@@ -346,6 +361,30 @@ impl From<engine::session::SelectionSummary> for SelectionSummaryDto {
             junk_bytes: i(s.junk_bytes),
             remaining_junk: i(s.remaining_junk),
             remaining_junk_bytes: i(s.remaining_junk_bytes),
+            build_folders: i(s.build_folders),
+            build_bytes: i(s.build_bytes),
+            remaining_build_folders: i(s.remaining_build_folders),
+            remaining_build_bytes: i(s.remaining_build_bytes),
+        }
+    }
+}
+
+impl From<engine::session::BuildItem> for BuildFolderDto {
+    fn from(b: engine::session::BuildItem) -> Self {
+        let (name, _) = name_and_parent(&b.path);
+        let (project_name, _) = name_and_parent(&b.project);
+        BuildFolderDto {
+            id: b.id,
+            path: lossy(&b.path),
+            name,
+            project: lossy(&b.project),
+            project_name,
+            tool: b.tool.to_string(),
+            rebuild: b.rebuild.to_string(),
+            files: i(b.files),
+            size: i(b.bytes),
+            last_used_ms: ns_to_ms(b.last_used_ns),
+            selected: b.selected,
         }
     }
 }
@@ -459,6 +498,7 @@ impl From<RecommendationKind> for engine::session::RecommendationKind {
             RecommendationKind::LeftoverFiles => Self::LeftoverFiles,
             RecommendationKind::DownloadDuplicates => Self::DownloadDuplicates,
             RecommendationKind::EmptyFolders => Self::EmptyFolders,
+            RecommendationKind::BuildFolders => Self::BuildFolders,
         }
     }
 }
@@ -471,6 +511,7 @@ impl From<engine::session::RecommendationKind> for RecommendationKind {
             K::LeftoverFiles => Self::LeftoverFiles,
             K::DownloadDuplicates => Self::DownloadDuplicates,
             K::EmptyFolders => Self::EmptyFolders,
+            K::BuildFolders => Self::BuildFolders,
         }
     }
 }
@@ -488,6 +529,7 @@ impl From<engine::session::GroupKind> for ResultKind {
             G::SimilarPhotos => Self::SimilarPhotos,
             G::PhotoIssues => Self::PhotoIssues,
             G::SimilarMedia => Self::SimilarMedia,
+            G::BuildFolders => Self::BuildFolders,
         }
     }
 }

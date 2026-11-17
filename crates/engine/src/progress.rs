@@ -21,8 +21,10 @@ pub enum ScanPhase {
     FullHashing = 3,
     Verifying = 4,
     AnalyzingFolders = 5,
-    Finalizing = 6,
-    Done = 7,
+    /// Measuring build folders (`node_modules`, `target`…).
+    BuildFolders = 6,
+    Finalizing = 7,
+    Done = 8,
 }
 
 impl ScanPhase {
@@ -34,7 +36,8 @@ impl ScanPhase {
             3 => ScanPhase::FullHashing,
             4 => ScanPhase::Verifying,
             5 => ScanPhase::AnalyzingFolders,
-            6 => ScanPhase::Finalizing,
+            6 => ScanPhase::BuildFolders,
+            7 => ScanPhase::Finalizing,
             _ => ScanPhase::Done,
         }
     }
@@ -47,6 +50,7 @@ impl ScanPhase {
             ScanPhase::FullHashing => "Hashing contents",
             ScanPhase::Verifying => "Verifying byte-by-byte",
             ScanPhase::AnalyzingFolders => "Comparing folders",
+            ScanPhase::BuildFolders => "Measuring build folders",
             ScanPhase::Finalizing => "Finalizing",
             ScanPhase::Done => "Done",
         }

@@ -20,6 +20,10 @@ compared by structure and contents.
   how much space was really freed.
 * Junk finder (caches, unfinished downloads, leftover temp files, empty
   files, broken shortcuts) and reports as CSV, JSON or a printable page.
+* Build folders for developers: `node_modules`, `target`, `build`, `.venv`,
+  `.gradle`, `Pods` and others that a project's tools recreate, recognised
+  only next to their project (`package.json`, `Cargo.toml`…), with when the
+  project was last used so inactive ones are easy to clear.
 * Storage overview: drives and free space, what uses space by type, a
   space map to drill into folders, old files, one-tap recommended cleanup,
   and compress-to-zip or move-to-another-drive for data you want to keep.

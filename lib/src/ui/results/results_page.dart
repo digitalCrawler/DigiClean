@@ -44,6 +44,15 @@ const _oldAges = [
 
 enum _OldScope { everywhere, downloads, installers }
 
+/// "Not used for" choices on the build-folders list (0: any time).
+const _buildAges = [
+  (label: 'Any time', days: 0),
+  (label: '1 month', days: 30),
+  (label: '3 months', days: 91),
+  (label: '6 months', days: 182),
+  (label: '1 year', days: 365),
+];
+
 /// Installer and disk-image formats.
 const installerExtensions = [
   'exe',
@@ -70,6 +79,18 @@ const _largeThresholds = [
 
 /// Kinds that exist only after the media analysis.
 const _analysedKinds = {ResultKind.similarPhotos, ResultKind.photoIssues, ResultKind.similarMedia};
+
+/// Lists of single items, ticked one by one, with "Select all" above them.
+/// Duplicates and similar sets are groups instead: Smart select and Keep
+/// best tick them in bulk.
+const _listKinds = {
+  ResultKind.largeFiles,
+  ResultKind.oldFiles,
+  ResultKind.photoIssues,
+  ResultKind.junk,
+  ResultKind.buildFolders,
+  ResultKind.emptyFolders,
+};
 
 /// One entry of the sections list.
 class _Section {
@@ -122,8 +143,17 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
   int _largeMin = 0;
   PagedList<JunkEntryDto>? _junk;
   JunkKind? _junkKind;
+  PagedList<BuildFolderDto>? _builds;
+  int _buildDays = 0;
+
+  /// "Not used since", fixed when the age is chosen (like old files).
+  int _buildBeforeMs = 0;
   PagedList<FileEntryDto>? _old;
   int _oldDays = 365;
+
+  /// "Not changed since", fixed when the age is chosen so the list, its
+  /// count and "Select all" all mean the same files.
+  int _oldBeforeMs = _daysAgo(365);
   _OldScope _oldScope = _OldScope.everywhere;
   PagedList<SimilarGroupDto>? _similar;
   PagedList<PhotoDto>? _photoList;
@@ -151,6 +181,7 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
     _empty?.dispose();
     _large?.dispose();
     _junk?.dispose();
+    _builds?.dispose();
     _old?.dispose();
     _similar?.dispose();
     _photoList?.dispose();
@@ -159,6 +190,7 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
     _empty = null;
     _large = _old = null;
     _junk = null;
+    _builds = null;
     _similar = null;
     _photoList = null;
     _mediaGroups = null;
@@ -176,6 +208,59 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
   /// Lists of single files are sorted by size where groups use "space to free".
   SortBy get _fileSort => _sort == SortBy.wasted || _sort == SortBy.count ? SortBy.size : _sort;
 
+  static int _daysAgo(int days) => DateTime.now().subtract(Duration(days: days)).millisecondsSinceEpoch;
+
+  /// The query of a list of single items with its filters: its pages, its
+  /// count and "Select all" use the same one.
+  GroupQuery _listQuery(ResultKind kind, [int offset = 0, int limit = 0]) {
+    final search = _search.isEmpty ? null : _search;
+    return switch (kind) {
+      ResultKind.largeFiles => GroupQuery(
+        offset: offset,
+        limit: limit,
+        sort: _fileSort,
+        descending: _descending,
+        search: search,
+        minSize: _largeMin > 0 ? _largeMin : null,
+      ),
+      ResultKind.oldFiles => GroupQuery(
+        offset: offset,
+        limit: limit,
+        sort: _fileSort,
+        descending: _descending,
+        search: search,
+        modifiedBeforeMs: _oldBeforeMs,
+        within: _oldScope == _OldScope.downloads ? ref.read(appPathsProvider).downloadDirs : null,
+        extensions: _oldScope == _OldScope.installers ? installerExtensions : null,
+      ),
+      ResultKind.photoIssues => GroupQuery(
+        offset: offset,
+        limit: limit,
+        sort: _fileSort,
+        descending: _descending,
+        search: search,
+        photoIssue: _photoIssueKind,
+      ),
+      ResultKind.junk => GroupQuery(
+        offset: offset,
+        limit: limit,
+        sort: _fileSort,
+        descending: _descending,
+        search: search,
+        junkKind: _junkKind,
+      ),
+      ResultKind.buildFolders => GroupQuery(
+        offset: offset,
+        limit: limit,
+        sort: _fileSort,
+        descending: _descending,
+        search: search,
+        modifiedBeforeMs: _buildDays > 0 ? _buildBeforeMs : null,
+      ),
+      _ => _query(offset, limit, category: false),
+    };
+  }
+
   /// (Re)creates paged lists for a new result set and reloads them when
   /// the results change.
   void _bind(ScanResults results, int generation) {
@@ -183,6 +268,7 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
       _disposeLists();
       _bound = results;
       _focus.clear();
+      _oldBeforeMs = _daysAgo(_oldDays);
       _files = PagedList((o, l) async {
         final page = await results.fileGroups(query: _query(o, l));
         return (page.total, page.groups);
@@ -192,16 +278,7 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
         return (page.total, page.groups);
       });
       _large = PagedList((o, l) async {
-        final page = await results.largeFiles(
-          query: GroupQuery(
-            offset: o,
-            limit: l,
-            sort: _fileSort,
-            descending: _descending,
-            search: _search.isEmpty ? null : _search,
-            minSize: _largeMin > 0 ? _largeMin : null,
-          ),
-        );
+        final page = await results.largeFiles(query: _listQuery(ResultKind.largeFiles, o, l));
         return (page.total, page.files);
       }, pageSize: 60);
       _similar = PagedList((o, l) async {
@@ -213,49 +290,23 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
         return (page.total, page.groups);
       }, pageSize: 30);
       _photoList = PagedList((o, l) async {
-        final page = await results.photoIssues(
-          query: GroupQuery(
-            offset: o,
-            limit: l,
-            sort: _fileSort,
-            descending: _descending,
-            search: _search.isEmpty ? null : _search,
-            photoIssue: _photoIssueKind,
-          ),
-        );
+        final page = await results.photoIssues(query: _listQuery(ResultKind.photoIssues, o, l));
         return (page.total, page.photos);
       }, pageSize: 60);
       _old = PagedList((o, l) async {
-        final paths = ref.read(appPathsProvider);
-        final page = await results.oldFiles(
-          query: GroupQuery(
-            offset: o,
-            limit: l,
-            sort: _fileSort,
-            descending: _descending,
-            search: _search.isEmpty ? null : _search,
-            modifiedBeforeMs: DateTime.now().subtract(Duration(days: _oldDays)).millisecondsSinceEpoch,
-            within: _oldScope == _OldScope.downloads ? paths.downloadDirs : null,
-            extensions: _oldScope == _OldScope.installers ? installerExtensions : null,
-          ),
-        );
+        final page = await results.oldFiles(query: _listQuery(ResultKind.oldFiles, o, l));
         return (page.total, page.files);
       }, pageSize: 60);
       _junk = PagedList((o, l) async {
-        final page = await results.junk(
-          query: GroupQuery(
-            offset: o,
-            limit: l,
-            sort: _fileSort,
-            descending: _descending,
-            search: _search.isEmpty ? null : _search,
-            junkKind: _junkKind,
-          ),
-        );
+        final page = await results.junk(query: _listQuery(ResultKind.junk, o, l));
         return (page.total, page.items);
       }, pageSize: 80);
+      _builds = PagedList((o, l) async {
+        final page = await results.buildFolders(query: _listQuery(ResultKind.buildFolders, o, l));
+        return (page.total, page.folders);
+      }, pageSize: 80);
       _empty = PagedList((o, l) async {
-        final page = await results.emptyFolders(query: _query(o, l, category: false));
+        final page = await results.emptyFolders(query: _listQuery(ResultKind.emptyFolders, o, l));
         return (page.total, page.folders);
       }, pageSize: 100);
       _boundGeneration = -1;
@@ -272,6 +323,7 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
     _empty?.reset();
     _large?.reset();
     _junk?.reset();
+    _builds?.reset();
     _old?.reset();
     _similar?.reset();
     _photoList?.reset();
@@ -305,6 +357,7 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
     ResultKind.largeFiles => _large,
     ResultKind.oldFiles => _old,
     ResultKind.junk => _junk,
+    ResultKind.buildFolders => _builds,
     ResultKind.emptyFolders => _empty,
   };
 
@@ -379,6 +432,26 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
         modifiedMs: x.modifiedMs,
         kind: x.kind,
         safe: x.safe,
+        selected: sel,
+      ),
+    ),
+  );
+
+  void _selectBuild(int id, bool sel) => _apply(
+    (r) => r.setBuildFolderSelected(buildId: id, selected: sel),
+    refresh: (_) => _builds?.replaceWhere(
+      (x) => x.id == id,
+      (x) => BuildFolderDto(
+        id: x.id,
+        path: x.path,
+        name: x.name,
+        project: x.project,
+        projectName: x.projectName,
+        tool: x.tool,
+        rebuild: x.rebuild,
+        files: x.files,
+        size: x.size,
+        lastUsedMs: x.lastUsedMs,
         selected: sel,
       ),
     ),
@@ -463,11 +536,19 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
     ref.read(resultsProvider.notifier).selectionChanged(summary, reloadLists: true);
   }
 
-  Future<void> _selectAllEmpty() async {
+  /// Ticks (or unticks) everything the current list shows, under its
+  /// filters. Lists of single items only.
+  Future<void> _selectAll(bool selected) async {
     final results = _bound;
-    if (results == null) return;
-    final summary = await results.selectAllEmptyFolders(search: _search.isEmpty ? null : _search);
-    ref.read(resultsProvider.notifier).selectionChanged(summary, reloadLists: true);
+    final kind = _section;
+    if (results == null || !_listKinds.contains(kind)) return;
+    _listFocus.requestFocus();
+    try {
+      final summary = await results.setListSelected(kind: kind, query: _listQuery(kind), selected: selected);
+      ref.read(resultsProvider.notifier).selectionChanged(summary, reloadLists: true);
+    } catch (e) {
+      if (mounted) showError(context, e);
+    }
   }
 
   Future<void> _ignoreFolder(String folder) => ignoreFolder(context, ref, folder);
@@ -522,6 +603,11 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
         _setFocus(1 << 30);
       case LogicalKeyboardKey.space:
         _toggleFocused();
+      // Ctrl+A (⌘A on a Mac) selects everything the list shows.
+      case LogicalKeyboardKey.keyA
+          when HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed:
+        if (!_listKinds.contains(_section)) return KeyEventResult.ignored;
+        if (e is KeyDownEvent) _selectAll(true);
       default:
         return KeyEventResult.ignored;
     }
@@ -538,6 +624,8 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
         _selectOld(f.id, !f.selected);
       case JunkEntryDto j:
         _selectJunk(j.id, !j.selected);
+      case BuildFolderDto b:
+        _selectBuild(b.id, !b.selected);
       case PhotoDto p:
         _selectPhoto(p.id, !p.selected);
       case FolderEntryDto f:
@@ -646,6 +734,15 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
         bytes: s?.remainingJunkBytes ?? stats.junkBytes,
       ),
       _Section(
+        ResultKind.buildFolders,
+        'Build folders',
+        Icons.construction_outlined,
+        'node_modules, target, build and other folders a project’s tools recreate on the next build.',
+        group: 'Clean up',
+        count: s?.remainingBuildFolders ?? stats.buildFolders,
+        bytes: s?.remainingBuildBytes ?? stats.buildBytes,
+      ),
+      _Section(
         ResultKind.emptyFolders,
         'Empty folders',
         Icons.folder_off_outlined,
@@ -698,6 +795,7 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
         stats.emptyFolders == 0 &&
         stats.largeFiles == 0 &&
         stats.junkItems == 0 &&
+        stats.buildFolders == 0 &&
         stats.photos == 0;
     if (nothing) {
       return Scaffold(
@@ -845,7 +943,6 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
               kind: _kind,
               summary: summary,
               onSmartSelect: switch (_kind) {
-                ResultKind.emptyFolders => _selectAllEmpty,
                 ResultKind.junk => _selectSafeJunk,
                 ResultKind.similarPhotos => _keepBestPhotos,
                 ResultKind.similarMedia => _keepBestMedia,
@@ -872,10 +969,20 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
       days: _oldDays,
       scope: _oldScope,
       hasDownloads: ref.read(appPathsProvider).downloadDirs.isNotEmpty,
-      onDays: (d) => _setQuery(() => _oldDays = d),
+      onDays: (d) => _setQuery(() {
+        _oldDays = d;
+        _oldBeforeMs = _daysAgo(d);
+      }),
       onScope: (s) => _setQuery(() => _oldScope = s),
     ),
     ResultKind.junk => _JunkHeader(selected: _junkKind, onChanged: (k) => _setQuery(() => _junkKind = k)),
+    ResultKind.buildFolders => _BuildFoldersHeader(
+      days: _buildDays,
+      onDays: (d) => _setQuery(() {
+        _buildDays = d;
+        _buildBeforeMs = _daysAgo(d);
+      }),
+    ),
     ResultKind.photoIssues when ref.read(resultsProvider).summary?.photosAnalyzed ?? false => _PhotoIssueChips(
       selected: _photoIssueKind,
       onChanged: (k) => _setQuery(() => _photoIssueKind = k),
@@ -903,6 +1010,7 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
     ResultKind.largeFiles => _largeMin > 0 ? 'No files this large' : 'No large files found',
     ResultKind.oldFiles => 'Nothing this old here',
     ResultKind.junk => _junkKind != null ? 'Nothing of this kind' : 'No junk found',
+    ResultKind.buildFolders => _buildDays > 0 ? 'Every project was used more recently' : 'No build folders found',
     ResultKind.emptyFolders => 'No empty folders',
   };
 
@@ -922,7 +1030,7 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
         if (total == null) return const SizedBox.shrink();
         if (total == 0) return EmptyState(icon: Icons.check, title: _emptyMessage(kind));
         final focus = _focusOf(kind).clamp(0, total - 1);
-        return Scrollbar(
+        final rows = Scrollbar(
           controller: _scrollFor(kind),
           child: ListView.builder(
             controller: _scrollFor(kind),
@@ -934,6 +1042,35 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
               return _row(kind, item, i, focused: !context.isCompact && i == focus, roots: state.roots);
             },
           ),
+        );
+        if (!_listKinds.contains(kind)) return rows;
+        final results = _bound!;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SelectAllHeader(
+              key: ValueKey('select-all-${kind.name}'),
+              total: total,
+              load: () => results.listSelection(kind: kind, query: _listQuery(kind)),
+              // Anything that changes what the list shows or what is ticked.
+              version: (
+                _search,
+                _sort,
+                _descending,
+                _largeMin,
+                _oldBeforeMs,
+                _oldScope,
+                _junkKind,
+                _buildBeforeMs,
+                _buildDays,
+                _photoIssueKind,
+                state.generation,
+                state.selectionVersion,
+              ),
+              onChanged: _selectAll,
+            ),
+            Expanded(child: rows),
+          ],
         );
       },
     );
@@ -948,6 +1085,7 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
       MediaGroupDto g => mediaGroupRow(context, g, focused: focused, onTap: open),
       PhotoDto p => photoIssueRow(context, p, roots, focused: focused, onTap: open, onSelect: _selectPhoto),
       JunkEntryDto j => junkRow(context, j, roots, focused: focused, onTap: open, onSelect: _selectJunk),
+      BuildFolderDto b => buildFolderRow(context, b, roots, focused: focused, onTap: open, onSelect: _selectBuild),
       FolderEntryDto f => emptyFolderRow(context, f, focused: focused, onTap: open, onSelect: _selectEmpty),
       FileEntryDto f => fileEntryRow(
         context,
@@ -1004,6 +1142,11 @@ class _ResultsPageState extends ConsumerState<ResultsPage> {
       ),
       PhotoDto p => photoIssueDetail(context, p, onChanged: (v) => _selectPhoto(p.id, v)),
       JunkEntryDto j => junkDetail(context, j, onChanged: (v) => _selectJunk(j.id, v)),
+      BuildFolderDto b => BuildFolderDetail(
+        key: ValueKey('build-${b.id}'),
+        folder: b,
+        onChanged: (v) => _selectBuild(b.id, v),
+      ),
       FolderEntryDto f => EmptyFolderDetail(key: ValueKey(f.id), folder: f, onChanged: (v) => _selectEmpty(f.id, v)),
       FileEntryDto f when kind == ResultKind.oldFiles => fileEntryDetail(
         f,
@@ -1031,6 +1174,109 @@ class _RowPlaceholder extends StatelessWidget {
       border: Border(bottom: BorderSide(color: context.ds.hairline)),
     ),
   );
+}
+
+/// The tick above a list of single items: everything the list shows (under
+/// its filters) or nothing. Half-ticked while only some are.
+class _SelectAllHeader extends StatefulWidget {
+  const _SelectAllHeader({
+    super.key,
+    required this.total,
+    required this.load,
+    required this.version,
+    required this.onChanged,
+  });
+
+  /// Items the list shows, until the counts are in.
+  final int total;
+  final Future<ListSelectionDto> Function() load;
+
+  /// Changes whenever the counts may have changed.
+  final Object version;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  State<_SelectAllHeader> createState() => _SelectAllHeaderState();
+}
+
+class _SelectAllHeaderState extends State<_SelectAllHeader> {
+  ListSelectionDto? _counts;
+  int _request = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_SelectAllHeader old) {
+    super.didUpdateWidget(old);
+    if (old.version != widget.version) _load();
+  }
+
+  Future<void> _load() async {
+    final request = ++_request;
+    try {
+      final counts = await widget.load();
+      if (mounted && request == _request) setState(() => _counts = counts);
+    } catch (_) {
+      // An action is running; the next change loads the counts again.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ds = context.ds;
+    final total = _counts?.total ?? widget.total;
+    final selected = _counts?.selected ?? 0;
+    final bytes = _counts?.bytes.toInt() ?? 0;
+    final all = total > 0 && selected >= total;
+    final size = bytes > 0 ? ' · ${formatBytes(bytes)}' : '';
+    final label = all
+        ? 'All ${formatCount(total)} selected$size'
+        : selected > 0
+        ? '${formatCount(selected)} of ${formatCount(total)} selected'
+        : 'Select all ${formatCount(total)}$size';
+    void toggle() => widget.onChanged(!all);
+    return Material(
+      color: theme.colorScheme.surfaceContainerLowest,
+      child: InkWell(
+        key: const ValueKey('select-all'),
+        onTap: toggle,
+        child: Container(
+          height: 44,
+          // Lines the tick up with the ticks of the rows.
+          padding: const EdgeInsets.only(left: 6, right: 12),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: ds.hairline)),
+          ),
+          child: Row(
+            children: [
+              Tooltip(
+                message: Platform.isMacOS ? 'Select all (⌘A)' : 'Select all (Ctrl+A)',
+                child: Checkbox(
+                  tristate: true,
+                  value: all ? true : (selected > 0 ? null : false),
+                  onChanged: (_) => toggle(),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// "30.9 MB can be freed" and what the scan covered.
@@ -1529,8 +1775,11 @@ class _SelectionBar extends ConsumerWidget {
       ResultKind.photoIssues => summary.photoIssueBytes,
       ResultKind.similarMedia => summary.mediaBytes,
       ResultKind.junk => summary.junkBytes,
+      ResultKind.buildFolders => summary.buildBytes,
       ResultKind.emptyFolders => 0,
     };
+    // Moving these elsewhere would only fill another drive.
+    final canMove = kind != ResultKind.emptyFolders && kind != ResultKind.junk && kind != ResultKind.buildFolders;
     final caps = platformCapabilities();
     final defaultAction = ref.watch(settingsProvider.select((s) => s.deleteAction));
     final trashLabel = caps.systemTrash
@@ -1552,29 +1801,28 @@ class _SelectionBar extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: Text(switch (kind) {
-                          ResultKind.emptyFolders => 'Select empty folders to remove them.',
-                          ResultKind.largeFiles ||
-                          ResultKind.oldFiles => 'Tick files you no longer need. These are not duplicates.',
+                          ResultKind.emptyFolders => 'Tick empty folders to remove them, or select all.',
+                          ResultKind.largeFiles || ResultKind.oldFiles =>
+                            'Tick files you no longer need, or select all. These are not duplicates.',
                           ResultKind.similarPhotos => 'Tick photos to remove, or keep only the best of each set.',
-                          ResultKind.photoIssues => 'Tick photos you no longer need.',
+                          ResultKind.photoIssues => 'Tick photos you no longer need, or select all.',
                           ResultKind.similarMedia => 'Tick copies to remove, or keep only the best of each set.',
                           ResultKind.junk => 'Tick what to remove. System caches are always safe.',
+                          ResultKind.buildFolders =>
+                            'Tick folders of projects you are not working on. Their tools recreate them.',
                           _ => 'Tick copies to remove, or let Smart select choose.',
                         }, style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
                       ),
-                      if (kind != ResultKind.largeFiles &&
-                          kind != ResultKind.oldFiles &&
-                          kind != ResultKind.photoIssues)
+                      // Lists of single items have "Select all" above them.
+                      if (!_listKinds.contains(kind) || kind == ResultKind.junk)
                         FilledButton.tonalIcon(
                           onPressed: onSmartSelect,
                           icon: Icon(switch (kind) {
-                            ResultKind.emptyFolders => Icons.select_all,
                             ResultKind.junk => Icons.verified_outlined,
                             ResultKind.similarPhotos || ResultKind.similarMedia => Icons.star_outline,
                             _ => Icons.auto_fix_high,
                           }),
                           label: Text(switch (kind) {
-                            ResultKind.emptyFolders => 'Select all',
                             ResultKind.junk => 'Select safe',
                             ResultKind.similarPhotos || ResultKind.similarMedia => 'Keep best',
                             _ => 'Smart select',
@@ -1604,7 +1852,7 @@ class _SelectionBar extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      if (kind != ResultKind.emptyFolders && kind != ResultKind.junk && !context.isCompact) ...[
+                      if (canMove && !context.isCompact) ...[
                         OutlinedButton.icon(
                           onPressed: () => onAction(ActionType.moveTo),
                           icon: const Icon(Icons.drive_file_move_outline),
@@ -1633,7 +1881,7 @@ class _SelectionBar extends ConsumerWidget {
                                 title: Text('Move to Recovery Bin'),
                               ),
                             ),
-                          if (kind != ResultKind.emptyFolders && kind != ResultKind.junk)
+                          if (canMove)
                             const PopupMenuItem(
                               value: ActionType.moveTo,
                               child: ListTile(
@@ -1716,6 +1964,37 @@ class _JunkHeader extends StatelessWidget {
               label: Text(junkKindLabel(k)),
               selected: selected == k,
               onSelected: (on) => onChanged(on ? k : null),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Not used for" chips above the build-folders list.
+class _BuildFoldersHeader extends StatelessWidget {
+  const _BuildFoldersHeader({required this.days, required this.onDays});
+
+  final int days;
+  final ValueChanged<int> onDays;
+
+  @override
+  Widget build(BuildContext context) {
+    final small = Theme.of(
+      context,
+    ).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        spacing: 8,
+        children: [
+          Text('Not used for', style: small),
+          for (final a in _buildAges)
+            ChoiceChip(
+              key: ValueKey('build-age-${a.days}'),
+              label: Text(a.label),
+              selected: days == a.days,
+              onSelected: (_) => onDays(a.days),
             ),
         ],
       ),

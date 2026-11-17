@@ -45,6 +45,32 @@ pub struct JunkEntry {
     pub file: u32,
 }
 
+/// A build folder (see [`crate::build_folders`]): what a project's tools
+/// recreate, measured on its own.
+#[derive(Debug, Clone)]
+pub struct BuildDir {
+    /// The project folder it belongs to.
+    pub parent: u32,
+    /// Its own record when the walk entered it; [`NO_ID`] for folders
+    /// that were only measured (hidden, or matching an exclusion pattern).
+    pub dir: u32,
+    pub name: Box<OsStr>,
+    pub rule: &'static crate::build_folders::Rule,
+    pub files: u64,
+    pub bytes: u64,
+    /// Newest file inside (ns since the epoch).
+    pub newest_ns: i64,
+    /// Newest file in the rest of the project (ns), 0 when unknown.
+    pub project_modified_ns: i64,
+}
+
+impl BuildDir {
+    /// When the project was last worked on or built.
+    pub fn last_used_ns(&self) -> i64 {
+        self.newest_ns.max(self.project_modified_ns)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SymlinkEntry {
     pub name: Box<OsStr>,
@@ -142,6 +168,8 @@ pub struct ScanStats {
     pub photos: u64,
     pub junk_items: u64,
     pub junk_bytes: u64,
+    pub build_folders: u64,
+    pub build_bytes: u64,
     pub errors: u64,
     pub elapsed_ms: u64,
     pub hash_algorithm: String,
@@ -161,6 +189,8 @@ pub struct ScanResult {
     pub large_files: Vec<u32>,
     /// Junk found during the walk, largest first (capped).
     pub junk: Vec<JunkEntry>,
+    /// Build folders, largest first.
+    pub build_dirs: Vec<BuildDir>,
     pub stats: ScanStats,
     /// A capped sample of problems (unreadable files, permission errors).
     pub issues: Vec<ScanIssue>,
@@ -175,6 +205,11 @@ impl ScanResult {
     pub fn junk_path(&self, id: u32) -> PathBuf {
         let j = &self.junk[id as usize];
         self.dirs[j.dir as usize].path.join(&*j.name)
+    }
+
+    pub fn build_path(&self, id: u32) -> PathBuf {
+        let b = &self.build_dirs[id as usize];
+        self.dirs[b.parent as usize].path.join(&*b.name)
     }
 
     pub fn dir_path(&self, id: u32) -> &Path {

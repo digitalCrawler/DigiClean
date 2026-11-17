@@ -23,8 +23,10 @@ import 'package:digiclean/src/core/photo_library.dart';
 import 'package:digiclean/src/state/background_check.dart';
 import 'package:digiclean/src/state/settings.dart';
 import 'package:digiclean/src/state/upkeep.dart';
+import 'package:digiclean/src/ui/results/review_rows.dart' show ReviewRow;
 import 'package:flutter/material.dart'
-    show FilledButton, ScaffoldMessenger, ScaffoldMessengerState, Scrollable, SizedBox, ValueKey;
+    show Checkbox, FilledButton, ScaffoldMessenger, ScaffoldMessengerState, Scrollable, SizedBox, ValueKey;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart' show AnyhowException;
 import 'package:flutter_test/flutter_test.dart';
@@ -404,6 +406,162 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Select safe'));
     await waitFor(() => find.text('1 selected').evaluate().isNotEmpty);
+  });
+
+  testWidgets('UI flow: "Select all" on the lists ticked one by one', (tester) async {
+    SharedPreferences.setMockInitialValues({'settings.v1': '{"onboardingDone": true, "deleteAction": "recoveryBin"}'});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        appPathsProvider.overrideWithValue(AppPaths.forTesting(bin.path)),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(locationsProvider.notifier).add(root.path);
+    // Two files unchanged for over two years, one for half a year.
+    void age(String path, int days) =>
+        File(p.join(root.path, path)).setLastModifiedSync(DateTime.now().subtract(Duration(days: days)));
+    age('unique.bin', 800);
+    age(p.join('Videos', 'holiday.mp4'), 800);
+    age(p.join('Photos', 'trip', 'day1.jpg'), 200);
+    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const DigiCleanApp()));
+    await tester.pumpAndSettle();
+
+    Future<void> waitFor(bool Function() condition) async {
+      final end = DateTime.now().add(const Duration(seconds: 30));
+      while (!condition()) {
+        if (DateTime.now().isAfter(end)) fail('timed out');
+        await tester.pump(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      await tester.pumpAndSettle();
+    }
+
+    bool shows(String text) => find.textContaining(text).evaluate().isNotEmpty;
+    final selectAll = find.byKey(const ValueKey('select-all'));
+    int oldTicked() => container.read(resultsProvider).summary!.oldFiles;
+
+    await tester.tap(find.text('Scan 1 location'));
+    await waitFor(() => container.read(resultsProvider).hasResults);
+
+    // Old files (1 year): one ticked by hand, then all of them.
+    await tester.tap(section('oldFiles'));
+    await waitFor(() => shows('Select all 2'));
+    final row = find.ancestor(of: find.text('unique.bin'), matching: find.byType(ReviewRow)).first;
+    await tester.tap(find.descendant(of: row, matching: find.byType(Checkbox)));
+    await waitFor(() => shows('1 of 2 selected'));
+    await tester.tap(selectAll);
+    await waitFor(() => shows('All 2 selected'));
+    expect(find.text('2 selected'), findsOneWidget, reason: 'the selection bar agrees');
+
+    // A wider filter shows one more file, not ticked yet.
+    await tester.tap(find.text('6 months'));
+    await waitFor(() => shows('2 of 3 selected'));
+    await tester.tap(selectAll);
+    await waitFor(() => shows('All 3 selected'));
+    expect(oldTicked(), 3);
+
+    // Ticking the header again unticks everything; Ctrl+A ticks all again.
+    await tester.tap(selectAll);
+    await waitFor(() => shows('Select all 3'));
+    expect(oldTicked(), 0);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await waitFor(() => shows('All 3 selected'));
+    expect(oldTicked(), 3);
+
+    // Empty folders and large files have it too; junk keeps "Select safe".
+    await tester.tap(section('emptyFolders'));
+    await waitFor(() => shows('Select all 1'));
+    await tester.tap(selectAll);
+    await waitFor(() => shows('All 1 selected'));
+    expect(container.read(resultsProvider).summary!.emptyFolders, 1);
+    await tester.tap(section('largeFiles'));
+    await waitFor(() => shows('Select all 1'));
+    await tester.tap(section('junk'));
+    await waitFor(() => shows('Select all 1'));
+    expect(find.text('Select safe'), findsOneWidget);
+    expect(oldTicked(), 3, reason: 'each list keeps its own ticks');
+  });
+
+  testWidgets('UI flow: build folders of an inactive project are removed and restored', (tester) async {
+    SharedPreferences.setMockInitialValues({'settings.v1': '{"onboardingDone": true, "deleteAction": "recoveryBin"}'});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        appPathsProvider.overrideWithValue(AppPaths.forTesting(bin.path)),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(locationsProvider.notifier).add(root.path);
+    // A web project nobody touched for half a year, and a Rust project in use.
+    final web = p.join(root.path, 'Code', 'web');
+    File(p.join(web, 'package.json'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('{}');
+    writeRandom(p.join(web, 'node_modules', 'lib', 'index.js'), 41, 40000);
+    for (final f in Directory(web).listSync(recursive: true).whereType<File>()) {
+      f.setLastModifiedSync(DateTime.now().subtract(const Duration(days: 200)));
+    }
+    final tool = p.join(root.path, 'Code', 'tool');
+    File(p.join(tool, 'Cargo.toml'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('[package]');
+    writeRandom(p.join(tool, 'target', 'debug', 'tool.exe'), 42, 90000);
+
+    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const DigiCleanApp()));
+    await tester.pumpAndSettle();
+
+    Future<void> waitFor(bool Function() condition) async {
+      final end = DateTime.now().add(const Duration(seconds: 30));
+      while (!condition()) {
+        if (DateTime.now().isAfter(end)) fail('timed out');
+        await tester.pump(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      await tester.pumpAndSettle();
+    }
+
+    bool shows(String text) => find.textContaining(text).evaluate().isNotEmpty;
+
+    await tester.tap(find.text('Scan 1 location'));
+    await waitFor(() => container.read(resultsProvider).hasResults);
+    expect(section('buildFolders', 2), findsOneWidget);
+
+    await tester.tap(section('buildFolders'));
+    await waitFor(() => shows('Select all 2'));
+    expect(find.text('web › node_modules'), findsWidgets);
+    expect(find.text('tool › target'), findsWidgets);
+    // Biggest first: the preview shows the Rust project and how it comes back.
+    expect(find.textContaining('cargo build'), findsOneWidget);
+
+    // Only the inactive project is left after the age filter; tick it.
+    await tester.tap(find.byKey(const ValueKey('build-age-91')));
+    await waitFor(() => shows('Select all 1'));
+    expect(find.text('tool › target'), findsNothing);
+    expect(find.textContaining('npm install'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('select-all')));
+    await waitFor(() => shows('All 1 selected'));
+    expect(find.text('Move'), findsNothing, reason: 'build folders are removed, not moved');
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Remove'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('recreate these on the next build'), findsOneWidget);
+    await tester.tap(find.text('Move to bin'));
+    await waitFor(() => shows('Moved 1 build folder'));
+    expect(Directory(p.join(web, 'node_modules')).existsSync(), isFalse);
+    expect(File(p.join(web, 'package.json')).existsSync(), isTrue, reason: 'the project stays');
+    expect(Directory(p.join(tool, 'target')).existsSync(), isTrue);
+    expect(container.read(historyProvider).single.bytesInBin, 40000);
+    expect(find.text('Every project was used more recently'), findsOneWidget);
+
+    await tester.tap(find.text('Undo'));
+    await waitFor(() => shows('Restored'));
+    expect(File(p.join(web, 'node_modules', 'lib', 'index.js')).existsSync(), isTrue);
+    expect(section('buildFolders', 2), findsOneWidget);
   });
 
   testWidgets('UI flow: "not duplicates" and ignored folders stay hidden', (tester) async {

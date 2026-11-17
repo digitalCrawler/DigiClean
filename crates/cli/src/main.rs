@@ -288,6 +288,13 @@ fn scan(args: ScanArgs) -> Result<()> {
                 "kind": j.kind,
                 "size": j.size,
             })).collect::<Vec<_>>(),
+            "build_folders": session.build_folders(0, usize::MAX, SortKey::Size, true, &filter).items.iter().map(|b| serde_json::json!({
+                "path": b.path.to_string_lossy(),
+                "tool": b.tool,
+                "rebuild": b.rebuild,
+                "size": b.bytes,
+                "files": b.files,
+            })).collect::<Vec<_>>(),
             "issues": session.result.issues,
         });
         println!("{}", serde_json::to_string_pretty(&json)?);
@@ -354,6 +361,26 @@ fn scan(args: ScanArgs) -> Result<()> {
             stats.junk_items,
             human(stats.junk_bytes)
         );
+    }
+    if stats.build_folders > 0 {
+        println!(
+            "\n{} build folders ({}) that their projects' tools recreate:",
+            stats.build_folders,
+            human(stats.build_bytes)
+        );
+        let builds = session.build_folders(0, args.limit, SortKey::Size, true, &filter);
+        for b in &builds.items {
+            println!(
+                "    {:>10}  {}  ({}: {})",
+                human(b.bytes),
+                b.path.display(),
+                b.tool,
+                b.rebuild
+            );
+        }
+        if builds.total > builds.items.len() {
+            println!("    … {} more", builds.total - builds.items.len());
+        }
     }
     if stats.errors > 0 {
         println!("\n{} items could not be read:", stats.errors);

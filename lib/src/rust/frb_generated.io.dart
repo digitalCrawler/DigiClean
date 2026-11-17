@@ -154,6 +154,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
+  BuildFolderDto dco_decode_build_folder_dto(dynamic raw);
+
+  @protected
+  BuildFolderPage dco_decode_build_folder_page(dynamic raw);
+
+  @protected
   CacheInfo dco_decode_cache_info(dynamic raw);
 
   @protected
@@ -250,6 +256,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ArchiveEntryDto> dco_decode_list_archive_entry_dto(dynamic raw);
 
   @protected
+  List<BuildFolderDto> dco_decode_list_build_folder_dto(dynamic raw);
+
+  @protected
   List<Category> dco_decode_list_category(dynamic raw);
 
   @protected
@@ -320,6 +329,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ResultKind> dco_decode_list_result_kind(dynamic raw);
+
+  @protected
+  ListSelectionDto dco_decode_list_selection_dto(dynamic raw);
 
   @protected
   List<SimilarGroupDto> dco_decode_list_similar_group_dto(dynamic raw);
@@ -628,6 +640,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
+  BuildFolderDto sse_decode_build_folder_dto(SseDeserializer deserializer);
+
+  @protected
+  BuildFolderPage sse_decode_build_folder_page(SseDeserializer deserializer);
+
+  @protected
   CacheInfo sse_decode_cache_info(SseDeserializer deserializer);
 
   @protected
@@ -724,6 +742,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ArchiveEntryDto> sse_decode_list_archive_entry_dto(SseDeserializer deserializer);
 
   @protected
+  List<BuildFolderDto> sse_decode_list_build_folder_dto(SseDeserializer deserializer);
+
+  @protected
   List<Category> sse_decode_list_category(SseDeserializer deserializer);
 
   @protected
@@ -794,6 +815,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ResultKind> sse_decode_list_result_kind(SseDeserializer deserializer);
+
+  @protected
+  ListSelectionDto sse_decode_list_selection_dto(SseDeserializer deserializer);
 
   @protected
   List<SimilarGroupDto> sse_decode_list_similar_group_dto(SseDeserializer deserializer);
@@ -1108,6 +1132,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_build_folder_dto(BuildFolderDto self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_build_folder_page(BuildFolderPage self, SseSerializer serializer);
+
+  @protected
   void sse_encode_cache_info(CacheInfo self, SseSerializer serializer);
 
   @protected
@@ -1204,6 +1234,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_archive_entry_dto(List<ArchiveEntryDto> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_build_folder_dto(List<BuildFolderDto> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_category(List<Category> self, SseSerializer serializer);
 
   @protected
@@ -1274,6 +1307,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_result_kind(List<ResultKind> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_selection_dto(ListSelectionDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_similar_group_dto(List<SimilarGroupDto> self, SseSerializer serializer);

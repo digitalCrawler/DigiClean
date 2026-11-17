@@ -16,12 +16,13 @@ use crate::config::FileCategory;
 use crate::error::{EngineError, Result};
 use crate::junk::JunkKind;
 use crate::model::{
-    DirRecord, FileGroup, FileRecord, FolderGroup, JunkEntry, ScanResult, ScanStats, SymlinkEntry,
+    BuildDir, DirRecord, FileGroup, FileRecord, FolderGroup, JunkEntry, ScanResult, ScanStats,
+    SymlinkEntry,
 };
 use crate::session::{ItemState, Session};
 
 const MAGIC: &[u8; 8] = b"DCSNAP\0\0";
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 /// When the scan behind a snapshot finished, as given to [`encode`].
 pub type FinishedMs = i64;
@@ -105,6 +106,18 @@ pub fn encode(session: &Session, finished_ms: FinishedMs) -> Vec<u8> {
         w.0.push(kind as u8);
         w.u32(j.file);
     }
+    w.len(r.build_dirs.len());
+    for b in &r.build_dirs {
+        w.u32(b.parent);
+        w.u32(b.dir);
+        w.os(&b.name);
+        // By id, so rules can be added without misreading old results.
+        w.bytes(b.rule.id.as_bytes());
+        w.u64(b.files);
+        w.u64(b.bytes);
+        w.i64(b.newest_ns);
+        w.i64(b.project_modified_ns);
+    }
 
     // What changed after the scan.
     w.states(&session.file_state);
@@ -117,6 +130,8 @@ pub fn encode(session: &Session, finished_ms: FinishedMs) -> Vec<u8> {
     w.bools(&session.old_selected);
     w.states(&session.junk_state);
     w.bools(&session.junk_selected);
+    w.states(&session.build_state);
+    w.bools(&session.build_selected);
     w.0
 }
 
@@ -236,6 +251,20 @@ pub fn decode(bytes: &[u8]) -> Option<(Session, FinishedMs)> {
             })
         })
         .collect::<Option<Vec<_>>>()?;
+    let build_dirs = (0..r.len()?)
+        .map(|_| {
+            Some(BuildDir {
+                parent: r.u32()?,
+                dir: r.u32()?,
+                name: r.os()?.into_boxed_os_str(),
+                rule: crate::build_folders::rule_by_id(std::str::from_utf8(r.bytes()?).ok()?)?,
+                files: r.u64()?,
+                bytes: r.u64()?,
+                newest_ns: r.i64()?,
+                project_modified_ns: r.i64()?,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
 
     // Every id must point inside the tables, or the session would panic.
     let (nd, nf) = (dirs.len(), files.len());
@@ -256,7 +285,10 @@ pub fn decode(bytes: &[u8]) -> Option<(Session, FinishedMs)> {
         && large_files.iter().all(|&f| file_ok(f))
         && junk
             .iter()
-            .all(|j| dir_ok(j.dir) && (j.file == crate::model::NO_ID || file_ok(j.file)));
+            .all(|j| dir_ok(j.dir) && (j.file == crate::model::NO_ID || file_ok(j.file)))
+        && build_dirs
+            .iter()
+            .all(|b| dir_ok(b.parent) && (b.dir == crate::model::NO_ID || dir_ok(b.dir)));
     if !ids_ok {
         return None;
     }
@@ -271,6 +303,7 @@ pub fn decode(bytes: &[u8]) -> Option<(Session, FinishedMs)> {
         empty_folders,
         large_files,
         junk,
+        build_dirs,
         stats,
         issues,
     };
@@ -286,6 +319,9 @@ pub fn decode(bytes: &[u8]) -> Option<(Session, FinishedMs)> {
     let nj = session.result.junk.len();
     let junk_state = r.states(nj)?;
     let junk_selected = r.bools(nj)?;
+    let nb = session.result.build_dirs.len();
+    let build_state = r.states(nb)?;
+    let build_selected = r.bools(nb)?;
     if r.at != bytes.len() {
         return None;
     }
@@ -299,6 +335,8 @@ pub fn decode(bytes: &[u8]) -> Option<(Session, FinishedMs)> {
     session.old_selected = old_selected;
     session.junk_state = junk_state;
     session.junk_selected = junk_selected;
+    session.build_state = build_state;
+    session.build_selected = build_selected;
     session.bump_generation();
     Some((session, finished_ms))
 }

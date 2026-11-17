@@ -28,6 +28,7 @@ String _what(ResultKind kind, SelectionSummaryDto s) => switch (kind) {
   ResultKind.photoIssues => plural(s.photoIssues.toInt(), 'photo'),
   ResultKind.similarMedia => plural(s.media.toInt(), 'file'),
   ResultKind.junk => plural(s.junk.toInt(), 'junk item'),
+  ResultKind.buildFolders => plural(s.buildFolders.toInt(), 'build folder'),
 };
 
 int _bytes(ResultKind kind, SelectionSummaryDto s) => switch (kind) {
@@ -40,6 +41,7 @@ int _bytes(ResultKind kind, SelectionSummaryDto s) => switch (kind) {
   ResultKind.photoIssues => s.photoIssueBytes.toInt(),
   ResultKind.similarMedia => s.mediaBytes.toInt(),
   ResultKind.junk => s.junkBytes.toInt(),
+  ResultKind.buildFolders => s.buildBytes.toInt(),
 };
 
 int selectedCount(ResultKind kind, SelectionSummaryDto s) => switch (kind) {
@@ -52,6 +54,7 @@ int selectedCount(ResultKind kind, SelectionSummaryDto s) => switch (kind) {
   ResultKind.photoIssues => s.photoIssues.toInt(),
   ResultKind.similarMedia => s.media.toInt(),
   ResultKind.junk => s.junk.toInt(),
+  ResultKind.buildFolders => s.buildFolders.toInt(),
 };
 
 /// Runs a delete / move / link action on the current selection: confirm,
@@ -259,6 +262,12 @@ class _ConfirmDialogState extends State<_ConfirmDialog> {
                 'Only the ticked items are removed. Items that changed since the scan are skipped.',
                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               )
+            else if (widget.kind == ResultKind.buildFolders)
+              Text(
+                'Each project’s tools recreate these on the next build or install, which can take a while. '
+                'Folders that changed since the scan are skipped.',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              )
             else
               Text(
                 'At least one copy of everything stays in place. Items that changed since the scan are skipped.',
@@ -394,6 +403,7 @@ void _showReport(BuildContext context, WidgetRef ref, ActionReportDto report, Ac
     ResultKind.folders => 'folder',
     ResultKind.emptyFolders => 'empty folder',
     ResultKind.junk => 'item',
+    ResultKind.buildFolders => 'build folder',
     _ => 'file',
   };
   final what = plural(done, noun);

@@ -82,6 +82,12 @@ class _PhotoLibraryPageState extends ConsumerState<PhotoLibraryPage> {
 
   void _removeAll(ImageGroupDto g) => setState(() => _selected.addAll([for (final m in g.members) _photos[m].id]));
 
+  /// Ticks or unticks every photo of the "To review" list.
+  void _markAll(List<int> indices, bool selected) {
+    final ids = [for (final i in indices) _photos[i].id];
+    setState(() => selected ? _selected.addAll(ids) : _selected.removeAll(ids));
+  }
+
   void _keepBest() {
     setState(() {
       for (final g in _groups) {
@@ -228,6 +234,7 @@ class _PhotoLibraryPageState extends ConsumerState<PhotoLibraryPage> {
 
   Widget _results(ThemeData theme) {
     final reviewIndices = _issues.keys.toList()..sort();
+    final allReviewMarked = reviewIndices.every((i) => _selected.contains(_photos[i].id));
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
       children: [
@@ -250,6 +257,14 @@ class _PhotoLibraryPageState extends ConsumerState<PhotoLibraryPage> {
                 onPressed: _keepBest,
                 icon: const Icon(Icons.star_outline),
                 label: const Text('Keep best'),
+              ),
+            ],
+            if (_review && reviewIndices.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: () => _markAll(reviewIndices, !allReviewMarked),
+                icon: Icon(allReviewMarked ? Icons.deselect : Icons.select_all),
+                label: Text(allReviewMarked ? 'Clear' : 'Select all'),
               ),
             ],
           ],

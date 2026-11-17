@@ -1078,6 +1078,77 @@ SingleFileDetail junkDetail(BuildContext context, JunkEntryDto j, {required Valu
       explanation: junkKindExplanation(j.kind),
     );
 
+/// A build folder: what made it, how it comes back, and the decision.
+class BuildFolderDetail extends StatelessWidget {
+  const BuildFolderDetail({super.key, required this.folder, required this.onChanged});
+
+  final BuildFolderDto folder;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ds = context.ds;
+    final b = folder;
+    final facts = <(String, String)>[
+      ('Project', softWrapPath(b.project)),
+      ('Folder', softWrapPath(b.path)),
+      ('Size', '${formatBytes(b.size)} in ${plural(b.files, 'file')}'),
+      ('Last used', '${formatDateTime(b.lastUsedMs)} · ${formatRelative(b.lastUsedMs)}'),
+      ('Made by', b.tool),
+    ];
+    return _DetailList(
+      builder: (previewHeight) => [
+        Container(
+          height: previewHeight * 0.6,
+          color: ds.surfaceStrong,
+          alignment: Alignment.center,
+          child: Icon(Icons.construction_outlined, size: 64, color: ds.ink),
+        ),
+        const SizedBox(height: 16),
+        _Title(
+          title: '${b.projectName} › ${b.name}',
+          subtitle: '${b.tool} build folder · ${formatBytes(b.size)} · used ${formatRelative(b.lastUsedMs)}',
+        ),
+        Container(
+          margin: const EdgeInsets.only(top: 14),
+          padding: const EdgeInsets.all(12),
+          color: ds.surfaceStrong,
+          child: Text(
+            '${b.tool} made this folder while building or installing the project. Removing it frees '
+            '${formatBytes(b.size)}; the project gets it back with “${b.rebuild}”, which can take a while.',
+            style: theme.textTheme.bodyMedium,
+          ),
+        ),
+        _SectionLabel(
+          'Decision',
+          trailing: NativePlatform.canReveal
+              ? TextButton.icon(
+                  onPressed: () => NativePlatform.revealInFileManager(b.path),
+                  icon: const Icon(Icons.folder_open_outlined, size: 18),
+                  label: const Text('Show in folder'),
+                )
+              : null,
+        ),
+        const SizedBox(height: 8),
+        DecisionToggle(remove: b.selected, onChanged: onChanged),
+        const _SectionLabel('Details'),
+        for (final (label, value) in facts)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: 96, child: Text(label.toUpperCase(), style: capsStyle(ds.muted, size: 10.5))),
+                Expanded(child: SelectableText(value, style: theme.textTheme.bodyMedium)),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class EmptyFolderDetail extends StatelessWidget {
   const EmptyFolderDetail({super.key, required this.folder, required this.onChanged});
 

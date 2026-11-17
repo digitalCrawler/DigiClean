@@ -278,8 +278,9 @@ void main() {
       await capture('${label}_4_selected', key);
       if (await openSection('folders')) await capture('${label}_5_folders', key);
       await openSection('largeFiles');
-      await waitFor(() => find.byType(Checkbox).evaluate().isNotEmpty);
-      await tester.tap(find.byType(Checkbox).first);
+      await waitFor(() => find.byType(ReviewRow).evaluate().isNotEmpty);
+      // The first row's tick (the list's own tick above it selects all).
+      await tester.tap(find.descendant(of: find.byType(ReviewRow).first, matching: find.byType(Checkbox)));
       await waitFor(() => find.text('1 selected').evaluate().isNotEmpty);
       await capture('${label}_6_large', key);
       await tester.tap(find.text('Recovery').last);

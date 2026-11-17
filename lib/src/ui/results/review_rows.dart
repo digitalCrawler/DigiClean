@@ -290,6 +290,30 @@ Widget emptyFolderRow(
   );
 }
 
+Widget buildFolderRow(
+  BuildContext context,
+  BuildFolderDto b,
+  List<String> roots, {
+  required bool focused,
+  required VoidCallback onTap,
+  required SelectCallback onSelect,
+}) {
+  return ReviewRow(
+    focused: focused,
+    onTap: onTap,
+    marked: b.selected,
+    onMarked: (v) => onSelect(b.id, v),
+    leading: const FolderIconBox(icon: Icons.construction_outlined),
+    title: '${b.projectName} › ${b.name}',
+    subtitle: [
+      b.tool,
+      'used ${formatRelative(b.lastUsedMs)}',
+      joinSegments(segmentsUnderRoot(b.project, roots)),
+    ].join(' · '),
+    amount: b.size,
+  );
+}
+
 /// Up to three photos fanned out, for similar-photo rows.
 class _PhotoStack extends StatelessWidget {
   const _PhotoStack({required this.paths});

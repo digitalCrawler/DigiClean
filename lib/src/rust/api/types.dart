@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 class ActionProgressDto {
   final PlatformInt64 done;
@@ -161,6 +161,89 @@ class ArchiveReportDto {
           folders == other.folders &&
           originalBytes == other.originalBytes &&
           archiveBytes == other.archiveBytes;
+}
+
+/// A folder a project's tools recreate, such as `node_modules`.
+class BuildFolderDto {
+  final int id;
+  final String path;
+  final String name;
+
+  /// The project folder it belongs to.
+  final String project;
+  final String projectName;
+
+  /// Who makes it: "Node.js".
+  final String tool;
+
+  /// How to get it back: "npm install".
+  final String rebuild;
+  final PlatformInt64 files;
+  final PlatformInt64 size;
+
+  /// When the project was last worked on or built.
+  final PlatformInt64 lastUsedMs;
+  final bool selected;
+
+  const BuildFolderDto({
+    required this.id,
+    required this.path,
+    required this.name,
+    required this.project,
+    required this.projectName,
+    required this.tool,
+    required this.rebuild,
+    required this.files,
+    required this.size,
+    required this.lastUsedMs,
+    required this.selected,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      path.hashCode ^
+      name.hashCode ^
+      project.hashCode ^
+      projectName.hashCode ^
+      tool.hashCode ^
+      rebuild.hashCode ^
+      files.hashCode ^
+      size.hashCode ^
+      lastUsedMs.hashCode ^
+      selected.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BuildFolderDto &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          path == other.path &&
+          name == other.name &&
+          project == other.project &&
+          projectName == other.projectName &&
+          tool == other.tool &&
+          rebuild == other.rebuild &&
+          files == other.files &&
+          size == other.size &&
+          lastUsedMs == other.lastUsedMs &&
+          selected == other.selected;
+}
+
+class BuildFolderPage {
+  final int total;
+  final List<BuildFolderDto> folders;
+
+  const BuildFolderPage({required this.total, required this.folders});
+
+  @override
+  int get hashCode => total.hashCode ^ folders.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BuildFolderPage && runtimeType == other.runtimeType && total == other.total && folders == other.folders;
 }
 
 class CacheInfo {
@@ -496,6 +579,7 @@ class GroupQuery {
   final JunkKind? junkKind;
 
   /// Old-files list: last changed before this time (ms since epoch).
+  /// Build folders: project last used before this time.
   final PlatformInt64? modifiedBeforeMs;
 
   /// Old-files list: only below these folders.
@@ -802,6 +886,32 @@ class LargeFilePage {
       other is LargeFilePage && runtimeType == other.runtimeType && total == other.total && files == other.files;
 }
 
+/// How much of a list of single items is ticked, under the list's filters.
+class ListSelectionDto {
+  /// Items the list shows.
+  final int total;
+
+  /// Of those, the ticked ones.
+  final int selected;
+
+  /// Size of everything the list shows.
+  final PlatformInt64 bytes;
+
+  const ListSelectionDto({required this.total, required this.selected, required this.bytes});
+
+  @override
+  int get hashCode => total.hashCode ^ selected.hashCode ^ bytes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ListSelectionDto &&
+          runtimeType == other.runtimeType &&
+          total == other.total &&
+          selected == other.selected &&
+          bytes == other.bytes;
+}
+
 class MediaAnalysisDto {
   final PlatformInt64 analyzed;
 
@@ -953,7 +1063,19 @@ class PathsReportDto {
 
 enum PerformanceMode { maximum, balanced, batterySaver, spinningDisk }
 
-enum Phase { discovering, groupingBySize, partialHashing, fullHashing, verifying, analyzingFolders, finalizing, done }
+enum Phase {
+  discovering,
+  groupingBySize,
+  partialHashing,
+  fullHashing,
+  verifying,
+  analyzingFolders,
+
+  /// Measuring build folders (`node_modules`, `target`…).
+  buildFolders,
+  finalizing,
+  done,
+}
 
 class PhotoAnalysisDto {
   final PlatformInt64 analyzed;
@@ -1120,6 +1242,9 @@ enum RecommendationKind {
   /// Copies in the download folders of files kept elsewhere.
   downloadDuplicates,
   emptyFolders,
+
+  /// Build folders of projects not used for three months.
+  buildFolders,
 }
 
 class RecoveryItemDto {
@@ -1219,6 +1344,9 @@ enum ResultKind {
 
   /// Songs and videos with the same soundtrack (after `analyze_media`).
   similarMedia,
+
+  /// Folders a project's tools recreate (`node_modules`, `target`…).
+  buildFolders,
 }
 
 class ScanEvent {
@@ -1452,6 +1580,8 @@ class ScanStatsDto {
   final PlatformInt64 photos;
   final PlatformInt64 junkItems;
   final PlatformInt64 junkBytes;
+  final PlatformInt64 buildFolders;
+  final PlatformInt64 buildBytes;
   final PlatformInt64 errors;
   final PlatformInt64 elapsedMs;
   final String hashAlgorithm;
@@ -1477,6 +1607,8 @@ class ScanStatsDto {
     required this.photos,
     required this.junkItems,
     required this.junkBytes,
+    required this.buildFolders,
+    required this.buildBytes,
     required this.errors,
     required this.elapsedMs,
     required this.hashAlgorithm,
@@ -1504,6 +1636,8 @@ class ScanStatsDto {
       photos.hashCode ^
       junkItems.hashCode ^
       junkBytes.hashCode ^
+      buildFolders.hashCode ^
+      buildBytes.hashCode ^
       errors.hashCode ^
       elapsedMs.hashCode ^
       hashAlgorithm.hashCode;
@@ -1533,6 +1667,8 @@ class ScanStatsDto {
           photos == other.photos &&
           junkItems == other.junkItems &&
           junkBytes == other.junkBytes &&
+          buildFolders == other.buildFolders &&
+          buildBytes == other.buildBytes &&
           errors == other.errors &&
           elapsedMs == other.elapsedMs &&
           hashAlgorithm == other.hashAlgorithm;
@@ -1608,6 +1744,10 @@ class SelectionSummaryDto {
   final PlatformInt64 junkBytes;
   final PlatformInt64 remainingJunk;
   final PlatformInt64 remainingJunkBytes;
+  final PlatformInt64 buildFolders;
+  final PlatformInt64 buildBytes;
+  final PlatformInt64 remainingBuildFolders;
+  final PlatformInt64 remainingBuildBytes;
 
   const SelectionSummaryDto({
     required this.files,
@@ -1644,6 +1784,10 @@ class SelectionSummaryDto {
     required this.junkBytes,
     required this.remainingJunk,
     required this.remainingJunkBytes,
+    required this.buildFolders,
+    required this.buildBytes,
+    required this.remainingBuildFolders,
+    required this.remainingBuildBytes,
   });
 
   @override
@@ -1681,7 +1825,11 @@ class SelectionSummaryDto {
       junk.hashCode ^
       junkBytes.hashCode ^
       remainingJunk.hashCode ^
-      remainingJunkBytes.hashCode;
+      remainingJunkBytes.hashCode ^
+      buildFolders.hashCode ^
+      buildBytes.hashCode ^
+      remainingBuildFolders.hashCode ^
+      remainingBuildBytes.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1721,7 +1869,11 @@ class SelectionSummaryDto {
           junk == other.junk &&
           junkBytes == other.junkBytes &&
           remainingJunk == other.remainingJunk &&
-          remainingJunkBytes == other.remainingJunkBytes;
+          remainingJunkBytes == other.remainingJunkBytes &&
+          buildFolders == other.buildFolders &&
+          buildBytes == other.buildBytes &&
+          remainingBuildFolders == other.remainingBuildFolders &&
+          remainingBuildBytes == other.remainingBuildBytes;
 }
 
 class SimilarGroupDto {

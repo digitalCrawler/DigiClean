@@ -82,6 +82,15 @@ impl Filters {
         !self.file_excluded(path)
     }
 
+    /// Whether a folder is kept out for good: a system folder, or inside an
+    /// excluded or protected path. Hidden folders and folders matching an
+    /// exclusion pattern are only kept out of the scan (see
+    /// [`crate::build_folders`]).
+    pub fn dir_blocked(&self, path: &Path, name: &OsStr) -> bool {
+        (self.skip_system && platform::is_system_dir_name(name))
+            || paths::is_within_any(path, &self.excluded_paths)
+    }
+
     /// Whether a file is excluded from the scan entirely (as opposed to being
     /// seen but not reported).
     pub fn file_excluded(&self, path: &Path) -> bool {

@@ -46,6 +46,48 @@ fn junk_filter(search: Option<String>, kind: Option<JunkKind>) -> GroupFilter {
     }
 }
 
+/// What a list of single items shows for `query` (large files, old files,
+/// photos to review, junk, empty folders), so its pages, its count and
+/// "select all" always agree.
+fn list_filter(kind: ResultKind, query: &GroupQuery) -> GroupFilter {
+    let search = query.search.clone();
+    match kind {
+        ResultKind::OldFiles => GroupFilter {
+            modified_before_ns: query
+                .modified_before_ms
+                .map(|ms| ms.saturating_mul(1_000_000)),
+            within: query.within.iter().flatten().map(Into::into).collect(),
+            extensions: query
+                .extensions
+                .iter()
+                .flatten()
+                .map(|e| e.trim_start_matches('.').to_lowercase())
+                .collect(),
+            ..filter(query.category, search, query.min_size)
+        },
+        ResultKind::LargeFiles => filter(query.category, search, query.min_size),
+        ResultKind::Junk => GroupFilter {
+            min_size: query.min_size.map(|m| m.max(0) as u64),
+            ..junk_filter(search, query.junk_kind)
+        },
+        ResultKind::PhotoIssues => GroupFilter {
+            photo_issue: query.photo_issue.map(Into::into),
+            ..filter(None, search, None)
+        },
+        ResultKind::BuildFolders => GroupFilter {
+            modified_before_ns: query
+                .modified_before_ms
+                .map(|ms| ms.saturating_mul(1_000_000)),
+            ..filter(None, search, query.min_size)
+        },
+        ResultKind::EmptyFolders
+        | ResultKind::Files
+        | ResultKind::Folders
+        | ResultKind::SimilarPhotos
+        | ResultKind::SimilarMedia => filter(None, search, None),
+    }
+}
+
 fn algorithm_of(session: &Session) -> HashAlgo {
     match session.result.config.hash_algorithm {
         engine::HashAlgorithm::Blake3 => HashAlgo::Blake3,
@@ -176,7 +218,7 @@ impl ScanResults {
             query.limit as usize,
             query.sort.into(),
             query.descending,
-            &filter(None, query.search, None),
+            &list_filter(ResultKind::EmptyFolders, &query),
         );
         EmptyFolderPage {
             total: page.total as u32,
@@ -187,14 +229,12 @@ impl ScanResults {
     /// Junk items (filters: search, minimum size, kind).
     pub fn junk(&self, query: GroupQuery) -> JunkPage {
         let session = self.session.read();
-        let mut f = junk_filter(query.search, query.junk_kind);
-        f.min_size = query.min_size.map(|m| m.max(0) as u64);
         let page = session.junk(
             query.offset as usize,
             query.limit as usize,
             query.sort.into(),
             query.descending,
-            &f,
+            &list_filter(ResultKind::Junk, &query),
         );
         JunkPage {
             total: page.total as u32,
@@ -221,34 +261,44 @@ impl ScanResults {
         session.summary().into()
     }
 
+    /// Folders a project's tools recreate, such as `node_modules` (filters:
+    /// project last used before `modified_before_ms`, search, minimum size).
+    pub fn build_folders(&self, query: GroupQuery) -> BuildFolderPage {
+        let session = self.session.read();
+        let page = session.build_folders(
+            query.offset as usize,
+            query.limit as usize,
+            query.sort.into(),
+            query.descending,
+            &list_filter(ResultKind::BuildFolders, &query),
+        );
+        BuildFolderPage {
+            total: page.total as u32,
+            folders: page.items.into_iter().map(Into::into).collect(),
+        }
+    }
+
+    #[frb(sync)]
+    pub fn set_build_folder_selected(
+        &self,
+        build_id: u32,
+        selected: bool,
+    ) -> Result<SelectionSummaryDto> {
+        let mut session = self.write_ui()?;
+        session.set_build_selected(build_id, selected)?;
+        Ok(session.summary().into())
+    }
+
     /// Files not changed for a long time (filters: age, folders,
     /// extensions, category, search, minimum size).
     pub fn old_files(&self, query: GroupQuery) -> LargeFilePage {
         let session = self.session.read();
-        let f = GroupFilter {
-            modified_before_ns: query
-                .modified_before_ms
-                .map(|ms| ms.saturating_mul(1_000_000)),
-            within: query
-                .within
-                .unwrap_or_default()
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            extensions: query
-                .extensions
-                .unwrap_or_default()
-                .into_iter()
-                .map(|e| e.trim_start_matches('.').to_lowercase())
-                .collect(),
-            ..filter(query.category, query.search, query.min_size)
-        };
         let page = session.old_files(
             query.offset as usize,
             query.limit as usize,
             query.sort.into(),
             query.descending,
-            &f,
+            &list_filter(ResultKind::OldFiles, &query),
         );
         LargeFilePage {
             total: page.total as u32,
@@ -264,7 +314,7 @@ impl ScanResults {
             query.limit as usize,
             query.sort.into(),
             query.descending,
-            &filter(query.category, query.search, query.min_size),
+            &list_filter(ResultKind::LargeFiles, &query),
         );
         LargeFilePage {
             total: page.total as u32,
@@ -390,7 +440,7 @@ impl ScanResults {
 
     /// Replaces the selection of the affected lists with what the chosen
     /// recommendations remove. Returns the lists to act on, in a safe order
-    /// (duplicates, then junk, then empty folders).
+    /// (duplicates, junk, build folders, then empty folders).
     pub fn select_recommendations(
         &self,
         kinds: Vec<RecommendationKind>,
@@ -404,7 +454,9 @@ impl ScanResults {
             let target = match engine::session::RecommendationKind::from(*k) {
                 engine::session::RecommendationKind::DownloadDuplicates => GroupKind::Files,
                 engine::session::RecommendationKind::EmptyFolders => GroupKind::EmptyFolders,
-                _ => GroupKind::Junk,
+                engine::session::RecommendationKind::BuildFolders => GroupKind::BuildFolders,
+                engine::session::RecommendationKind::SystemCaches
+                | engine::session::RecommendationKind::LeftoverFiles => GroupKind::Junk,
             };
             if !targets.contains(&target) {
                 session.clear_selection(target);
@@ -414,7 +466,13 @@ impl ScanResults {
         for k in kinds {
             session.select_recommendation(k.into(), &downloads);
         }
-        let order = [GroupKind::Files, GroupKind::Junk, GroupKind::EmptyFolders];
+        // Empty folders last: removing the rest can leave more of them.
+        let order = [
+            GroupKind::Files,
+            GroupKind::Junk,
+            GroupKind::BuildFolders,
+            GroupKind::EmptyFolders,
+        ];
         order
             .into_iter()
             .filter(|t| targets.contains(t))
@@ -548,7 +606,8 @@ impl ScanResults {
             | ResultKind::Junk
             | ResultKind::OldFiles
             | ResultKind::PhotoIssues
-            | ResultKind::SimilarMedia => {}
+            | ResultKind::SimilarMedia
+            | ResultKind::BuildFolders => {}
         }
         Ok(session.summary().into())
     }
@@ -572,9 +631,26 @@ impl ScanResults {
         self.session.write().apply_rule(kind.into(), &rule) as i64
     }
 
-    pub fn select_all_empty_folders(&self, search: Option<String>) -> SelectionSummaryDto {
+    /// How many items a list of single items (large files, old files,
+    /// photos to review, junk, empty folders) shows for `query`, and how
+    /// many of those are ticked. All zero for groups.
+    pub fn list_selection(&self, kind: ResultKind, query: GroupQuery) -> ListSelectionDto {
+        let session = self.session.read();
+        session
+            .list_selection(kind.into(), &list_filter(kind, &query))
+            .into()
+    }
+
+    /// Ticks or unticks everything a list of single items shows for
+    /// `query`. Groups (duplicates, similar sets) are left alone.
+    pub fn set_list_selected(
+        &self,
+        kind: ResultKind,
+        query: GroupQuery,
+        selected: bool,
+    ) -> SelectionSummaryDto {
         let mut session = self.session.write();
-        session.select_all_empty_folders(&filter(None, search, None));
+        session.set_list_selected(kind.into(), &list_filter(kind, &query), selected);
         session.summary().into()
     }
 
@@ -703,7 +779,8 @@ impl ScanResults {
             | ResultKind::OldFiles
             | ResultKind::SimilarPhotos
             | ResultKind::PhotoIssues
-            | ResultKind::SimilarMedia => None,
+            | ResultKind::SimilarMedia
+            | ResultKind::BuildFolders => None,
         })
     }
 
@@ -728,7 +805,8 @@ impl ScanResults {
                 | ResultKind::OldFiles
                 | ResultKind::SimilarPhotos
                 | ResultKind::PhotoIssues
-                | ResultKind::SimilarMedia => false,
+                | ResultKind::SimilarMedia
+                | ResultKind::BuildFolders => false,
             };
         }
         session.set_ignored_content(&files, &folders);
@@ -861,16 +939,12 @@ impl ScanResults {
     /// Blurry, dark and screenshot images (filter: `photo_issue`, search).
     pub fn photo_issues(&self, query: GroupQuery) -> PhotoPage {
         let session = self.session.read();
-        let f = GroupFilter {
-            photo_issue: query.photo_issue.map(Into::into),
-            ..filter(None, query.search, None)
-        };
         let page = session.photo_issue_list(
             query.offset as usize,
             query.limit as usize,
             query.sort.into(),
             query.descending,
-            &f,
+            &list_filter(ResultKind::PhotoIssues, &query),
         );
         PhotoPage {
             total: page.total as u32,

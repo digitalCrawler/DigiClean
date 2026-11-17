@@ -81,6 +81,13 @@ install cleaners.
 | **Folder compare / backup check** | "Which photos are missing from my backup?" | Content-based diff of two folder trees using the same engine: only in A, only in B, in both | M |
 | **Network drives & NAS** | Large libraries live on NAS boxes | Already works with mapped paths; add a network-aware performance profile and resume-after-disconnect | S–M |
 
+## Phase 6 — Developer machines
+
+| Feature | Why | How | Effort |
+|---|---|---|---|
+| **Build folders** ✅ done | `node_modules`, `target`, `build`, `.venv`… are often the biggest folders on a developer's computer, and the project's tools recreate them | Rule table matching a folder name with its project's file (`package.json`, `Cargo.toml`…); hidden ones found without scanning hidden folders; measured on their own; removal re-checks the project file and the size; "last used" filter and a recommendation for projects unused for 90 days | M |
+| **Duplicates inside build folders** | Copies inside `node_modules` are part of a package; removing one breaks the project until it is reinstalled | Leave files inside build folders out of duplicate groups (or mark them and keep them out of Smart select) | S |
+
 ## Quality track (alongside every phase)
 
 - **Localisation** (Flutter `intl` ARB files) and screen-reader labels on all controls.

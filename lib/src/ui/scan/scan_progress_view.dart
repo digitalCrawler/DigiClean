@@ -22,7 +22,7 @@ class ScanProgressView extends ConsumerWidget {
     Phase.discovering || Phase.groupingBySize => 0,
     Phase.partialHashing => 1,
     Phase.fullHashing || Phase.verifying => 2,
-    Phase.analyzingFolders || Phase.finalizing || Phase.done => 3,
+    Phase.analyzingFolders || Phase.buildFolders || Phase.finalizing || Phase.done => 3,
   };
 
   @override

@@ -83,6 +83,7 @@ String phaseLabel(Phase phase) => switch (phase) {
   Phase.fullHashing => 'Hashing contents',
   Phase.verifying => 'Verifying byte-by-byte',
   Phase.analyzingFolders => 'Comparing folders',
+  Phase.buildFolders => 'Measuring build folders',
   Phase.finalizing => 'Finalizing',
   Phase.done => 'Done',
 };

@@ -9,6 +9,8 @@
 //!   unselected and *intact* — nothing inside it has been removed since the
 //!   scan — and both folders still have the scanned file count and size.
 //! * The target itself must be unchanged since the scan.
+//! * A build folder must still belong to its project (`node_modules` next
+//!   to a `package.json`…) and measure exactly as scanned.
 //! * Optionally, contents are re-hashed before removal.
 
 use std::fs;
@@ -16,6 +18,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::build_folders;
 use crate::control::ScanControl;
 use crate::error::{EngineError, Result};
 use crate::hashing;
@@ -62,6 +65,9 @@ pub enum ActionTarget {
     /// Songs and videos with the same soundtrack: an unchanged copy of
     /// each set must remain.
     SimilarMedia,
+    /// Build folders (`node_modules`, `target`…): each must still be the
+    /// build folder of its project, unchanged since the scan.
+    BuildFolders,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -341,6 +347,7 @@ pub fn execute(
         ActionTarget::SimilarPhotos => exec.run_similar(false, progress)?,
         ActionTarget::SimilarMedia => exec.run_similar(true, progress)?,
         ActionTarget::Junk => exec.run_junk(progress)?,
+        ActionTarget::BuildFolders => exec.run_build(progress)?,
     }
     exec.session.bump_generation();
     let mut report = exec.report;
@@ -726,6 +733,55 @@ impl<'a> Executor<'a> {
             }
             progress(i as u64 + 1, total);
         }
+        progress(total, total);
+        Ok(())
+    }
+
+    /// Removes or moves build folders. Each must still be a real folder that
+    /// its project's tools recreate (the project file is still there), and
+    /// measure exactly as scanned: a build since then means it is in use.
+    fn run_build(&mut self, progress: ProgressFn<'_>) -> Result<()> {
+        let selected = self.session.selected_build_folders();
+        let total = selected.len() as u64;
+        let mut pending: Vec<(u32, PathBuf, u64)> = Vec::new();
+        progress(0, total);
+        for (i, b) in selected.into_iter().enumerate() {
+            self.control.checkpoint()?;
+            let path = self.session.result.build_path(b);
+            let entry = self.session.result.build_dirs[b as usize].clone();
+            let scanned = build_folders::Measure {
+                files: entry.files,
+                bytes: entry.bytes,
+                newest_ns: entry.newest_ns,
+            };
+            let skip = if build_folders::classify(&path) != Some(entry.rule) {
+                Some("skipped: no longer a build folder of its project")
+            } else if (entry.dir != NO_ID && self.session.dir_modified[entry.dir as usize])
+                || build_folders::measure(&path, self.control)? != Some(scanned)
+            {
+                Some("skipped: changed since the scan (built again?)")
+            } else {
+                None
+            };
+            if let Some(message) = skip {
+                self.report.issue(&path, message, true);
+            } else if self.use_system_trash {
+                pending.push((b, path, entry.bytes));
+                if pending.len() >= TRASH_BATCH {
+                    self.flush_trash_with(&mut pending, Session::mark_build);
+                }
+            } else {
+                match self.apply(&path, true, entry.bytes, entry.files, None, None) {
+                    Ok(state) => {
+                        self.session.mark_build(b, state);
+                        self.report.success(&path, entry.bytes, self.request.kind);
+                    }
+                    Err(message) => self.report.issue(&path, message, false),
+                }
+            }
+            progress(i as u64 + 1, total);
+        }
+        self.flush_trash_with(&mut pending, Session::mark_build);
         progress(total, total);
         Ok(())
     }

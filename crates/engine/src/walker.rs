@@ -34,6 +34,10 @@ pub struct WalkOutput {
     pub dirs: Vec<DirRecord>,
     pub files: Vec<FileRecord>,
     pub junk: Vec<JunkEntry>,
+    /// Folders not entered (hidden, or matching an exclusion pattern) whose
+    /// name a build folder may have, as (parent, name); see
+    /// [`crate::build_folders`].
+    pub skipped_build_candidates: Vec<(u32, Box<OsStr>)>,
 }
 
 /// Thread-safe, capped log of non-fatal problems.
@@ -85,6 +89,8 @@ struct DirBatch {
     junk: u32,
     /// Junk found here; `file` is an index into `files`.
     junk_entries: Vec<(JunkEntry, Option<usize>)>,
+    /// Sub-folders not entered here that may be build folders.
+    skipped_builds: Vec<Box<OsStr>>,
 }
 
 struct Walker<'a> {
@@ -181,7 +187,9 @@ fn assemble(roots: Vec<PathBuf>, mut batches: Vec<DirBatch>, count: u32) -> Resu
     let mut files: Vec<FileRecord> = Vec::with_capacity(total_files);
     let mut dirs: Vec<DirRecord> = Vec::with_capacity(batches.len());
     let mut junk: Vec<JunkEntry> = Vec::new();
+    let mut skipped_build_candidates = Vec::new();
     for batch in batches {
+        skipped_build_candidates.extend(batch.skipped_builds.into_iter().map(|n| (batch.id, n)));
         let mut ids = Vec::with_capacity(batch.files.len());
         for file in batch.files {
             ids.push(files.len() as u32);
@@ -212,6 +220,7 @@ fn assemble(roots: Vec<PathBuf>, mut batches: Vec<DirBatch>, count: u32) -> Resu
         dirs,
         files,
         junk,
+        skipped_build_candidates,
     })
 }
 
@@ -250,6 +259,7 @@ impl<'a> Walker<'a> {
             symlinks: Vec::new(),
             junk: 0,
             junk_entries: Vec::new(),
+            skipped_builds: Vec::new(),
         };
 
         match fs::read_dir(&batch.path) {
@@ -316,6 +326,15 @@ impl<'a> Walker<'a> {
         hidden: bool,
     ) {
         if !self.filters.allow_dir(&child, name, hidden) {
+            // Kept out of the scan for being hidden (`.gradle`, `.venv`) or
+            // for matching an exclusion pattern (the app skips
+            // `node_modules` by default): a build folder there is still
+            // measured on its own, without its files joining the scan.
+            if crate::build_folders::is_candidate_name(name)
+                && !self.filters.dir_blocked(&child, name)
+            {
+                batch.skipped_builds.push(name.into());
+            }
             batch.complete = false;
             return;
         }
@@ -493,6 +512,7 @@ impl<'a> Walker<'a> {
             symlinks: Vec::new(),
             junk: 0,
             junk_entries: Vec::new(),
+            skipped_builds: Vec::new(),
         };
         let name = path.file_name().unwrap_or_default().to_owned();
         self.on_file(&mut batch, &name, path, meta, None);

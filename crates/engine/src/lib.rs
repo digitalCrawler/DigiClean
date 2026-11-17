@@ -12,6 +12,8 @@
 //! 5. **Verify** (optional) — byte-by-byte comparison inside each group.
 //! 6. **Folders** — Merkle hashes over directory trees whose structural
 //!    signature matches, to find identical folders.
+//! 7. **Build folders** — `node_modules`, `target` and the like, recognised
+//!    by their project and measured ([`build_folders`]).
 //!
 //! Hashes are cached on disk ([`cache::HashCache`]) keyed by path and
 //! validated by size + mtime, so rescans only touch changed files.
@@ -19,6 +21,7 @@
 pub mod actions;
 pub mod archive;
 pub mod background;
+pub mod build_folders;
 pub mod cache;
 pub mod config;
 pub mod control;
